@@ -1,0 +1,29 @@
+# macOS
+.DS_Store
+
+# Swift Package Manager / build output
+.build/
+Build/
+DerivedData/
+*.dSYM/
+*.app/
+
+# Xcode / SwiftPM user-specific state
+.swiftpm/
+xcuserdata/
+*.xcuserstate
+*.xccheckout
+*.moved-aside
+*.xcscmblueprint
+
+# Local env / secrets
+.env
+.env.*
+*.local
+
+# Editor settings
+.idea/
+.vscode/
+
+# Logs
+*.log
