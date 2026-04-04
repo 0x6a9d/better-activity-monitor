@@ -10,7 +10,7 @@ struct CPUFrequencyHistogramView: View {
 
     var body: some View {
         HistogramSurface {
-            Canvas { context, size in
+            Canvas(rendersAsynchronously: true) { context, size in
                 drawGrid(in: size, context: &context)
 
                 switch style {
@@ -47,7 +47,7 @@ struct PowerHistogramView: View {
 
     var body: some View {
         HistogramSurface {
-            Canvas { context, size in
+            Canvas(rendersAsynchronously: true) { context, size in
                 drawGrid(in: size, context: &context)
 
                 switch style {
@@ -84,7 +84,7 @@ struct ThermalStateHistogramView: View {
 
     var body: some View {
         HistogramSurface {
-            Canvas { context, size in
+            Canvas(rendersAsynchronously: true) { context, size in
                 drawGrid(in: size, context: &context)
 
                 switch style {
@@ -120,7 +120,7 @@ struct FanSpeedHistogramView: View {
 
     var body: some View {
         HistogramSurface {
-            Canvas { context, size in
+            Canvas(rendersAsynchronously: true) { context, size in
                 drawGrid(in: size, context: &context)
 
                 switch style {

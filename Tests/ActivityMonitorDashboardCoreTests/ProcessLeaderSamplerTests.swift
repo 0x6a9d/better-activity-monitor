@@ -9,6 +9,23 @@ func memoryMetricDisplayUsesReadableMBAndGBUnits() {
 }
 
 @Test
+func processSnapshotParserExtractsPidCpuMemoryAndCommand() {
+    let sample = """
+       101   12.5    2048 /Applications/Foo App.app/Contents/MacOS/Foo App
+       202    0.0  512000 /System/Library/CoreServices/Finder.app/Contents/MacOS/Finder
+    """
+
+    let rows = ProcessLeaderSampler.parseProcessSnapshot(from: sample)
+
+    #expect(rows.count == 2)
+    #expect(rows[0].pid == 101)
+    #expect(rows[0].cpuPercent == 12.5)
+    #expect(rows[0].residentKilobytes == 2_048)
+    #expect(rows[0].command == "Foo App")
+    #expect(rows[1].command == "Finder")
+}
+
+@Test
 func gpuRegistryParserCollectsPerProcessTotalsAndLastSubmissionPID() {
     let sample = """
     +-o AGXAcceleratorG17X  <class AGXAcceleratorG17X>

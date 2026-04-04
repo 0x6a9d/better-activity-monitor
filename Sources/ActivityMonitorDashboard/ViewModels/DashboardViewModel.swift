@@ -50,9 +50,9 @@ private actor MetricsSamplingCoordinator {
 @MainActor
 final class DashboardViewModel: ObservableObject {
     static let historyCapacity = 90
-    private static let refreshInterval: Duration = .seconds(1)
-    private static let cpuMemoryLeaderRefreshInterval: TimeInterval = 8
-    private static let gpuLeaderRefreshInterval: TimeInterval = 5
+    private static let refreshInterval: Duration = .seconds(2)
+    private static let cpuMemoryLeaderRefreshInterval: TimeInterval = 30
+    private static let gpuLeaderRefreshInterval: TimeInterval = 20
 
     @Published private var metrics = DashboardMetricsState()
 

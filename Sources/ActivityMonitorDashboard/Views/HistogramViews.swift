@@ -10,7 +10,7 @@ struct CPULoadHistogramView: View {
 
     var body: some View {
         HistogramSurface {
-            Canvas { context, size in
+            Canvas(rendersAsynchronously: true) { context, size in
                 drawGrid(in: size, context: &context)
 
                 switch style {
@@ -50,7 +50,7 @@ struct PressureHistogramView: View {
     var body: some View {
         HistogramSurface {
             ZStack {
-                Canvas { context, size in
+                Canvas(rendersAsynchronously: true) { context, size in
                     drawGrid(in: size, context: &context)
 
                     switch style {
