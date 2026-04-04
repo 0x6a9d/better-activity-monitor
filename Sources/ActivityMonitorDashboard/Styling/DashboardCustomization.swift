@@ -226,6 +226,19 @@ final class DashboardCustomizationStore: ObservableObject {
         apply(updated)
     }
 
+    func swap(_ panel: DashboardPanelKind, with targetPanel: DashboardPanelKind) {
+        guard let currentIndex = customization.panelOrder.firstIndex(of: panel),
+              let targetIndex = customization.panelOrder.firstIndex(of: targetPanel),
+              currentIndex != targetIndex
+        else {
+            return
+        }
+
+        var updated = customization
+        updated.panelOrder.swapAt(currentIndex, targetIndex)
+        apply(updated)
+    }
+
     func move(_ panel: DashboardPanelKind, to targetIndex: Int) {
         guard let currentIndex = customization.panelOrder.firstIndex(of: panel),
               customization.panelOrder.indices.contains(targetIndex),
@@ -262,6 +275,10 @@ final class DashboardCustomizationStore: ObservableObject {
                 self.apply(updated)
             }
         )
+    }
+
+    func defaultColor(for keyPath: KeyPath<DashboardCustomization, PersistedColor>) -> Color {
+        DashboardCustomization()[keyPath: keyPath].color
     }
 
     private func apply(_ customization: DashboardCustomization) {

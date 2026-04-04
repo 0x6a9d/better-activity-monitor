@@ -9,6 +9,7 @@ struct DashboardView: View {
     @AppStorage("appearanceMode") var appearanceModeRawValue = AppearanceMode.auto.rawValue
     @State var isEditingDashboard = false
     @State var draggedPanel: DashboardPanelKind?
+    @State var dropTargetPanel: DashboardPanelKind?
 
     let panelIdealWidth: CGFloat = 348
 
@@ -22,13 +23,17 @@ struct DashboardView: View {
         .onAppear {
             syncSamplingState()
         }
-        .onChange(of: isEditingDashboard) { _, _ in
+        .onChange(of: isEditingDashboard) { _, isEditing in
+            if !isEditing {
+                resetDragPreview()
+            }
             syncSamplingState()
         }
         .onChange(of: scenePhase) { _, _ in
             syncSamplingState()
         }
         .onDisappear {
+            resetDragPreview()
             viewModel.stop()
         }
         .animation(.easeInOut(duration: 0.18), value: isEditingDashboard)
@@ -52,6 +57,29 @@ struct DashboardView: View {
         } else {
             viewModel.stop()
         }
+    }
+
+    func updateDropPreview(for targetPanel: DashboardPanelKind, isTargeted: Bool) {
+        guard isEditingDashboard else {
+            return
+        }
+
+        if isTargeted,
+           let draggedPanel,
+           draggedPanel != targetPanel
+        {
+            dropTargetPanel = targetPanel
+            return
+        }
+
+        if dropTargetPanel == targetPanel {
+            dropTargetPanel = nil
+        }
+    }
+
+    func resetDragPreview() {
+        draggedPanel = nil
+        dropTargetPanel = nil
     }
 
     var controls: some View {
@@ -91,7 +119,7 @@ struct DashboardView: View {
 
                 Button {
                     if isEditingDashboard {
-                        draggedPanel = nil
+                        resetDragPreview()
                     }
 
                     isEditingDashboard.toggle()

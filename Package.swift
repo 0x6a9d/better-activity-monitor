@@ -32,5 +32,10 @@ let package = Package(
             dependencies: ["ActivityMonitorDashboardCore"],
             path: "Tests/ActivityMonitorDashboardCoreTests"
         ),
+        .testTarget(
+            name: "ActivityMonitorDashboardTests",
+            dependencies: ["ActivityMonitorDashboard"],
+            path: "Tests/ActivityMonitorDashboardTests"
+        ),
     ]
 )

@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct ActivityMonitorDashboardApp: App {
+    @NSApplicationDelegateAdaptor(AppLifecycleDelegate.self) private var appDelegate
     @AppStorage("appearanceMode") private var appearanceModeRawValue = AppearanceMode.auto.rawValue
 
     var body: some Scene {
