@@ -2,37 +2,17 @@ import Foundation
 import Combine
 import ActivityMonitorDashboardCore
 
-@MainActor
-final class DashboardViewModel: ObservableObject {
-    static let historyCapacity = 90
-    private static let cpuMemoryLeaderRefreshInterval: TimeInterval = 5
-    private static let gpuLeaderRefreshInterval: TimeInterval = 3
-
-    @Published private(set) var cpuSamples: [CPUSample] = []
-    @Published private(set) var cpuFrequencySamples: [CPUFrequencySample] = []
-    @Published private(set) var memorySamples: [MemorySample] = []
-    @Published private(set) var gpuSamples: [GPUSample] = []
-    @Published private(set) var aneSamples: [ANESample] = []
-    @Published private(set) var totalPowerSamples: [TotalPowerSample] = []
-    @Published private(set) var thermalSamples: [ThermalSample] = []
-    @Published private(set) var thermalSample: ThermalSample = .unavailable
-    @Published private(set) var processLeaders: ProcessLeadersSnapshot = .empty
-    @Published private(set) var lastUpdated: Date?
-
-    private let sampler = SystemMetricsSampler()
-    private let processLeaderSampler = ProcessLeaderSampler()
-    private var cpuHistory = HistoryBuffer<CPUSample>(capacity: historyCapacity)
-    private var cpuFrequencyHistory = HistoryBuffer<CPUFrequencySample>(capacity: historyCapacity)
-    private var memoryHistory = HistoryBuffer<MemorySample>(capacity: historyCapacity)
-    private var gpuHistory = HistoryBuffer<GPUSample>(capacity: historyCapacity)
-    private var aneHistory = HistoryBuffer<ANESample>(capacity: historyCapacity)
-    private var totalPowerHistory = HistoryBuffer<TotalPowerSample>(capacity: historyCapacity)
-    private var thermalHistory = HistoryBuffer<ThermalSample>(capacity: historyCapacity)
-    private var timer: Timer?
-    private var cpuMemoryLeaderTask: Task<Void, Never>?
-    private var gpuLeaderTask: Task<Void, Never>?
-    private var lastCPUMemoryLeaderRequestDate: Date?
-    private var lastGPULeaderRequestDate: Date?
+private struct DashboardMetricsState {
+    var cpuSamples: [CPUSample] = []
+    var cpuFrequencySamples: [CPUFrequencySample] = []
+    var memorySamples: [MemorySample] = []
+    var gpuSamples: [GPUSample] = []
+    var aneSamples: [ANESample] = []
+    var totalPowerSamples: [TotalPowerSample] = []
+    var thermalSamples: [ThermalSample] = []
+    var thermalSample: ThermalSample = .unavailable
+    var processLeaders: ProcessLeadersSnapshot = .empty
+    var lastUpdated: Date?
 
     var latestCPU: CPUSample? {
         cpuSamples.last
@@ -57,32 +37,144 @@ final class DashboardViewModel: ObservableObject {
     var latestTotalPower: TotalPowerSample? {
         totalPowerSamples.last
     }
+}
+
+private actor MetricsSamplingCoordinator {
+    private let sampler = SystemMetricsSampler()
+
+    func sample() -> SystemMetricsSnapshot {
+        sampler.sample()
+    }
+}
+
+@MainActor
+final class DashboardViewModel: ObservableObject {
+    static let historyCapacity = 90
+    private static let refreshInterval: Duration = .seconds(1)
+    private static let cpuMemoryLeaderRefreshInterval: TimeInterval = 8
+    private static let gpuLeaderRefreshInterval: TimeInterval = 5
+
+    @Published private var metrics = DashboardMetricsState()
+
+    private let samplingCoordinator = MetricsSamplingCoordinator()
+    private let processLeaderSampler = ProcessLeaderSampler()
+    private var cpuHistory = HistoryBuffer<CPUSample>(capacity: historyCapacity)
+    private var cpuFrequencyHistory = HistoryBuffer<CPUFrequencySample>(capacity: historyCapacity)
+    private var memoryHistory = HistoryBuffer<MemorySample>(capacity: historyCapacity)
+    private var gpuHistory = HistoryBuffer<GPUSample>(capacity: historyCapacity)
+    private var aneHistory = HistoryBuffer<ANESample>(capacity: historyCapacity)
+    private var totalPowerHistory = HistoryBuffer<TotalPowerSample>(capacity: historyCapacity)
+    private var thermalHistory = HistoryBuffer<ThermalSample>(capacity: historyCapacity)
+    private var refreshTask: Task<Void, Never>?
+    private var cpuMemoryLeaderTask: Task<Void, Never>?
+    private var gpuLeaderTask: Task<Void, Never>?
+    private var lastCPUMemoryLeaderRequestDate: Date?
+    private var lastGPULeaderRequestDate: Date?
+
+    var cpuSamples: [CPUSample] {
+        metrics.cpuSamples
+    }
+
+    var cpuFrequencySamples: [CPUFrequencySample] {
+        metrics.cpuFrequencySamples
+    }
+
+    var memorySamples: [MemorySample] {
+        metrics.memorySamples
+    }
+
+    var gpuSamples: [GPUSample] {
+        metrics.gpuSamples
+    }
+
+    var aneSamples: [ANESample] {
+        metrics.aneSamples
+    }
+
+    var totalPowerSamples: [TotalPowerSample] {
+        metrics.totalPowerSamples
+    }
+
+    var thermalSamples: [ThermalSample] {
+        metrics.thermalSamples
+    }
+
+    var thermalSample: ThermalSample {
+        metrics.thermalSample
+    }
+
+    var processLeaders: ProcessLeadersSnapshot {
+        metrics.processLeaders
+    }
+
+    var lastUpdated: Date? {
+        metrics.lastUpdated
+    }
+
+    var latestCPU: CPUSample? {
+        metrics.latestCPU
+    }
+
+    var latestMemory: MemorySample? {
+        metrics.latestMemory
+    }
+
+    var latestCPUFrequency: CPUFrequencySample? {
+        metrics.latestCPUFrequency
+    }
+
+    var latestGPU: GPUSample? {
+        metrics.latestGPU
+    }
+
+    var latestANE: ANESample? {
+        metrics.latestANE
+    }
+
+    var latestTotalPower: TotalPowerSample? {
+        metrics.latestTotalPower
+    }
 
     func start() {
-        guard timer == nil else {
+        guard refreshTask == nil else {
             return
         }
 
-        refresh()
-        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.refresh()
+        let samplingCoordinator = self.samplingCoordinator
+        let refreshInterval = Self.refreshInterval
+
+        refreshTask = Task.detached(priority: .utility) { [weak self, samplingCoordinator, refreshInterval] in
+            while !Task.isCancelled {
+                guard let self else {
+                    return
+                }
+
+                let snapshot = await samplingCoordinator.sample()
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                await self.apply(snapshot: snapshot)
+
+                do {
+                    try await Task.sleep(for: refreshInterval)
+                } catch {
+                    return
+                }
             }
         }
     }
 
     func stop() {
-        timer?.invalidate()
-        timer = nil
+        refreshTask?.cancel()
+        refreshTask = nil
         cpuMemoryLeaderTask?.cancel()
         cpuMemoryLeaderTask = nil
         gpuLeaderTask?.cancel()
         gpuLeaderTask = nil
     }
 
-    private func refresh() {
-        let snapshot = sampler.sample()
-
+    private func apply(snapshot: SystemMetricsSnapshot) {
         cpuHistory.append(snapshot.cpu)
         cpuFrequencyHistory.append(snapshot.cpuFrequency)
         memoryHistory.append(snapshot.memory)
@@ -93,15 +185,18 @@ final class DashboardViewModel: ObservableObject {
         }
         thermalHistory.append(snapshot.thermal)
 
-        cpuSamples = cpuHistory.values
-        cpuFrequencySamples = cpuFrequencyHistory.values
-        memorySamples = memoryHistory.values
-        gpuSamples = gpuHistory.values
-        aneSamples = aneHistory.values
-        totalPowerSamples = totalPowerHistory.values
-        thermalSamples = thermalHistory.values
-        thermalSample = snapshot.thermal
-        lastUpdated = snapshot.timestamp
+        metrics = DashboardMetricsState(
+            cpuSamples: cpuHistory.values,
+            cpuFrequencySamples: cpuFrequencyHistory.values,
+            memorySamples: memoryHistory.values,
+            gpuSamples: gpuHistory.values,
+            aneSamples: aneHistory.values,
+            totalPowerSamples: totalPowerHistory.values,
+            thermalSamples: thermalHistory.values,
+            thermalSample: snapshot.thermal,
+            processLeaders: metrics.processLeaders,
+            lastUpdated: snapshot.timestamp
+        )
 
         let timestamp = snapshot.timestamp
         refreshGPULeaderIfNeeded(at: timestamp, overallUtilization: snapshot.gpu.utilization)
@@ -138,11 +233,13 @@ final class DashboardViewModel: ObservableObject {
             }
 
             await MainActor.run {
-                self.processLeaders = ProcessLeadersSnapshot(
-                    cpu: self.processLeaders.cpu,
-                    memory: self.processLeaders.memory,
+                var updatedMetrics = self.metrics
+                updatedMetrics.processLeaders = ProcessLeadersSnapshot(
+                    cpu: self.metrics.processLeaders.cpu,
+                    memory: self.metrics.processLeaders.memory,
                     gpu: gpuLeader
                 )
+                self.metrics = updatedMetrics
                 self.gpuLeaderTask = nil
             }
         }
@@ -177,11 +274,13 @@ final class DashboardViewModel: ObservableObject {
             }
 
             await MainActor.run {
-                self.processLeaders = ProcessLeadersSnapshot(
+                var updatedMetrics = self.metrics
+                updatedMetrics.processLeaders = ProcessLeadersSnapshot(
                     cpu: leaders.cpu,
                     memory: leaders.memory,
-                    gpu: self.processLeaders.gpu
+                    gpu: self.metrics.processLeaders.gpu
                 )
+                self.metrics = updatedMetrics
                 self.cpuMemoryLeaderTask = nil
             }
         }

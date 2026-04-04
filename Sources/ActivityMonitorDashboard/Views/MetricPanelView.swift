@@ -1,12 +1,13 @@
 import SwiftUI
 
 struct MetricStat: Identifiable {
-    let id = UUID()
+    let id: String
     let label: String
     let value: String
     let valueColor: Color
 
     init(label: String, value: String, valueColor: Color = .primary) {
+        self.id = label
         self.label = label
         self.value = value
         self.valueColor = valueColor

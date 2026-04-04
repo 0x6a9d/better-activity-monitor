@@ -2,6 +2,7 @@ import SwiftUI
 import ActivityMonitorDashboardCore
 
 struct DashboardView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject var viewModel = DashboardViewModel()
     @StateObject var customizationStore = DashboardCustomizationStore()
     @AppStorage("graphStyle") var graphStyleRawValue = GraphStyle.filledLine.rawValue
@@ -19,14 +20,13 @@ struct DashboardView: View {
         .padding(16)
         .background(DashboardPalette.windowBackground.ignoresSafeArea())
         .onAppear {
-            viewModel.start()
+            syncSamplingState()
         }
-        .onChange(of: isEditingDashboard) { _, isEditing in
-            if isEditing {
-                viewModel.stop()
-            } else {
-                viewModel.start()
-            }
+        .onChange(of: isEditingDashboard) { _, _ in
+            syncSamplingState()
+        }
+        .onChange(of: scenePhase) { _, _ in
+            syncSamplingState()
         }
         .onDisappear {
             viewModel.stop()
@@ -40,6 +40,18 @@ struct DashboardView: View {
 
     var appearanceMode: AppearanceMode {
         AppearanceMode.fromStoredValue(appearanceModeRawValue)
+    }
+
+    var shouldSampleMetrics: Bool {
+        scenePhase == .active && !isEditingDashboard
+    }
+
+    func syncSamplingState() {
+        if shouldSampleMetrics {
+            viewModel.start()
+        } else {
+            viewModel.stop()
+        }
     }
 
     var controls: some View {

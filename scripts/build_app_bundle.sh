@@ -8,8 +8,11 @@ APP_PATH="$BUILD_ROOT/$APP_NAME.app"
 ICON_SOURCE="$ROOT_DIR/bam-logo.png"
 INFO_PLIST_SOURCE="$ROOT_DIR/AppBundle/Info.plist"
 BUILD_CACHE_ROOT="$BUILD_ROOT/swift-build-cache"
+TMP_ROOT="${TMPDIR:-/tmp}"
+SWIFT_BUILD_ROOT="$TMP_ROOT/better-activity-monitor-swift-package-build"
 
-mkdir -p "$BUILD_CACHE_ROOT/home" "$BUILD_CACHE_ROOT/ModuleCache"
+rm -rf "$BUILD_CACHE_ROOT" "$SWIFT_BUILD_ROOT"
+mkdir -p "$BUILD_CACHE_ROOT/home" "$BUILD_CACHE_ROOT/ModuleCache" "$SWIFT_BUILD_ROOT"
 
 export HOME="$BUILD_CACHE_ROOT/home"
 export CLANG_MODULE_CACHE_PATH="$BUILD_CACHE_ROOT/ModuleCache"
@@ -26,9 +29,9 @@ if [[ ! -f "$INFO_PLIST_SOURCE" ]]; then
 fi
 
 echo "Building release executable..."
-swift build -c release --disable-sandbox
+swift build -c release --disable-sandbox --scratch-path "$SWIFT_BUILD_ROOT"
 
-EXECUTABLE_PATH="$(find "$ROOT_DIR/.build" -type f -path "*/release/ActivityMonitorDashboard" | head -n 1)"
+EXECUTABLE_PATH="$(find "$SWIFT_BUILD_ROOT" -type f -path "*/release/ActivityMonitorDashboard" | head -n 1)"
 
 if [[ -z "$EXECUTABLE_PATH" || ! -f "$EXECUTABLE_PATH" ]]; then
   echo "Could not locate release executable." >&2
