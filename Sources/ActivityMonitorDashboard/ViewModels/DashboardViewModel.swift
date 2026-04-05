@@ -22,7 +22,7 @@ final class DashboardViewModel: ObservableObject {
             case .foreground:
                 .seconds(2)
             case .background:
-                .seconds(6)
+                .seconds(2)
             case .paused:
                 nil
             }

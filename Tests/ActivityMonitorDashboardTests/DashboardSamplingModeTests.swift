@@ -8,8 +8,11 @@ final class DashboardSamplingModeTests: XCTestCase {
         XCTAssertEqual(DashboardViewModel.SamplingMode.foreground.gpuLeaderRefreshInterval, 20)
     }
 
-    func testBackgroundSamplingModeKeepsSamplingAtReducedCadence() {
-        XCTAssertEqual(DashboardViewModel.SamplingMode.background.refreshInterval, .seconds(6))
+    func testBackgroundSamplingModeMatchesForegroundMetricCadence() {
+        XCTAssertEqual(
+            DashboardViewModel.SamplingMode.background.refreshInterval,
+            DashboardViewModel.SamplingMode.foreground.refreshInterval
+        )
         XCTAssertEqual(DashboardViewModel.SamplingMode.background.cpuMemoryLeaderRefreshInterval, 120)
         XCTAssertEqual(DashboardViewModel.SamplingMode.background.gpuLeaderRefreshInterval, 90)
     }
