@@ -12,10 +12,46 @@ private actor MetricsSamplingCoordinator {
 
 @MainActor
 final class DashboardViewModel: ObservableObject {
+    enum SamplingMode: Equatable {
+        case foreground
+        case background
+        case paused
+
+        var refreshInterval: Duration? {
+            switch self {
+            case .foreground:
+                .seconds(2)
+            case .background:
+                .seconds(6)
+            case .paused:
+                nil
+            }
+        }
+
+        var cpuMemoryLeaderRefreshInterval: TimeInterval? {
+            switch self {
+            case .foreground:
+                30
+            case .background:
+                120
+            case .paused:
+                nil
+            }
+        }
+
+        var gpuLeaderRefreshInterval: TimeInterval? {
+            switch self {
+            case .foreground:
+                20
+            case .background:
+                90
+            case .paused:
+                nil
+            }
+        }
+    }
+
     static let historyCapacity = 90
-    private static let refreshInterval: Duration = .seconds(2)
-    private static let cpuMemoryLeaderRefreshInterval: TimeInterval = 30
-    private static let gpuLeaderRefreshInterval: TimeInterval = 20
 
     let cpuLoadPanel = CPULoadPanelModel(initialState: CPULoadPanelState())
     let cpuFrequencyPanel = CPUFrequencyPanelModel(initialState: CPUFrequencyPanelState())
@@ -40,14 +76,37 @@ final class DashboardViewModel: ObservableObject {
     private var gpuLeaderTask: Task<Void, Never>?
     private var lastCPUMemoryLeaderRequestDate: Date?
     private var lastGPULeaderRequestDate: Date?
+    private var samplingMode: SamplingMode = .paused
 
-    func start() {
-        guard refreshTask == nil else {
+    func setSamplingMode(_ newMode: SamplingMode) {
+        guard samplingMode != newMode else {
+            return
+        }
+
+        let previousMode = samplingMode
+        samplingMode = newMode
+
+        if previousMode != .foreground, newMode == .foreground {
+            lastCPUMemoryLeaderRequestDate = nil
+            lastGPULeaderRequestDate = nil
+        }
+
+        restartSampling()
+    }
+
+    func stop() {
+        samplingMode = .paused
+        cancelSamplingTasks()
+    }
+
+    private func restartSampling() {
+        cancelSamplingTasks()
+
+        guard let refreshInterval = samplingMode.refreshInterval else {
             return
         }
 
         let samplingCoordinator = self.samplingCoordinator
-        let refreshInterval = Self.refreshInterval
 
         refreshTask = Task.detached(priority: .utility) { [weak self, samplingCoordinator, refreshInterval] in
             while !Task.isCancelled {
@@ -71,7 +130,7 @@ final class DashboardViewModel: ObservableObject {
         }
     }
 
-    func stop() {
+    private func cancelSamplingTasks() {
         refreshTask?.cancel()
         refreshTask = nil
         cpuMemoryLeaderTask?.cancel()
@@ -102,8 +161,15 @@ final class DashboardViewModel: ObservableObject {
         updateThermalPanels(using: thermalSample)
 
         let timestamp = snapshot.timestamp
-        refreshGPULeaderIfNeeded(at: timestamp, overallUtilization: snapshot.gpu.utilization)
-        refreshCPUMemoryLeadersIfNeeded(at: timestamp)
+        refreshGPULeaderIfNeeded(
+            at: timestamp,
+            overallUtilization: snapshot.gpu.utilization,
+            minimumRefreshInterval: samplingMode.gpuLeaderRefreshInterval
+        )
+        refreshCPUMemoryLeadersIfNeeded(
+            at: timestamp,
+            minimumRefreshInterval: samplingMode.cpuMemoryLeaderRefreshInterval
+        )
     }
 
     private func updateCPULoadPanel(using thermalSample: ThermalSample) {
@@ -199,7 +265,15 @@ final class DashboardViewModel: ObservableObject {
         )
     }
 
-    private func refreshGPULeaderIfNeeded(at timestamp: Date, overallUtilization: Double) {
+    private func refreshGPULeaderIfNeeded(
+        at timestamp: Date,
+        overallUtilization: Double,
+        minimumRefreshInterval: TimeInterval?
+    ) {
+        guard let minimumRefreshInterval else {
+            return
+        }
+
         guard gpuLeaderTask == nil else {
             return
         }
@@ -207,7 +281,7 @@ final class DashboardViewModel: ObservableObject {
         guard shouldRefreshLeader(
             lastRequestDate: lastGPULeaderRequestDate,
             at: timestamp,
-            interval: Self.gpuLeaderRefreshInterval
+            interval: minimumRefreshInterval
         ) else {
             return
         }
@@ -221,7 +295,7 @@ final class DashboardViewModel: ObservableObject {
             let gpuLeader = await processLeaderSampler.sampleGPULeaderIfNeeded(
                 at: timestamp,
                 overallUtilization: overallUtilization,
-                minimumRefreshInterval: Self.gpuLeaderRefreshInterval
+                minimumRefreshInterval: minimumRefreshInterval
             )
 
             guard !Task.isCancelled else {
@@ -239,7 +313,14 @@ final class DashboardViewModel: ObservableObject {
         }
     }
 
-    private func refreshCPUMemoryLeadersIfNeeded(at timestamp: Date) {
+    private func refreshCPUMemoryLeadersIfNeeded(
+        at timestamp: Date,
+        minimumRefreshInterval: TimeInterval?
+    ) {
+        guard let minimumRefreshInterval else {
+            return
+        }
+
         guard cpuMemoryLeaderTask == nil else {
             return
         }
@@ -247,7 +328,7 @@ final class DashboardViewModel: ObservableObject {
         guard shouldRefreshLeader(
             lastRequestDate: lastCPUMemoryLeaderRequestDate,
             at: timestamp,
-            interval: Self.cpuMemoryLeaderRefreshInterval
+            interval: minimumRefreshInterval
         ) else {
             return
         }
@@ -260,7 +341,7 @@ final class DashboardViewModel: ObservableObject {
 
             let leaders = await processLeaderSampler.sampleCPUMemoryLeadersIfNeeded(
                 at: timestamp,
-                minimumRefreshInterval: Self.cpuMemoryLeaderRefreshInterval
+                minimumRefreshInterval: minimumRefreshInterval
             )
 
             guard !Task.isCancelled else {

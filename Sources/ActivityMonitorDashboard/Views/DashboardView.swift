@@ -53,16 +53,16 @@ struct DashboardView: View {
         AppearanceMode.fromStoredValue(appearanceModeRawValue)
     }
 
-    var shouldSampleMetrics: Bool {
-        isAppActive && !isEditingDashboard
+    var samplingMode: DashboardViewModel.SamplingMode {
+        if isEditingDashboard {
+            return .paused
+        }
+
+        return isAppActive ? .foreground : .background
     }
 
     func syncSamplingState() {
-        if shouldSampleMetrics {
-            viewModel.start()
-        } else {
-            viewModel.stop()
-        }
+        viewModel.setSamplingMode(samplingMode)
     }
 
     func updateDropPreview(for targetPanel: DashboardPanelKind, isTargeted: Bool) {
