@@ -1,8 +1,8 @@
 import Foundation
 
 public final class SystemMetricsSampler {
-    private static let cpuFrequencyRefreshInterval: TimeInterval = 6
-    private static let thermalRefreshInterval: TimeInterval = 10
+    private static let cpuFrequencyRefreshInterval: TimeInterval = 1
+    private static let thermalRefreshInterval: TimeInterval = 1
 
     private let cpuSampler = CPUSampler()
     private let cpuFrequencySampler = CPUFrequencySampler()

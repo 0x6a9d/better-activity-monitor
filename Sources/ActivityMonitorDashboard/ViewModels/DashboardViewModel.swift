@@ -20,9 +20,9 @@ final class DashboardViewModel: ObservableObject {
         var refreshInterval: Duration? {
             switch self {
             case .foreground:
-                .seconds(2)
+                .seconds(1)
             case .background:
-                .seconds(2)
+                .seconds(1)
             case .paused:
                 nil
             }
@@ -84,6 +84,7 @@ final class DashboardViewModel: ObservableObject {
         }
 
         let previousMode = samplingMode
+        let previousRefreshInterval = previousMode.refreshInterval
         samplingMode = newMode
 
         if previousMode != .foreground, newMode == .foreground {
@@ -91,7 +92,14 @@ final class DashboardViewModel: ObservableObject {
             lastGPULeaderRequestDate = nil
         }
 
-        restartSampling()
+        guard let refreshInterval = newMode.refreshInterval else {
+            cancelSamplingTasks()
+            return
+        }
+
+        if refreshTask == nil || previousRefreshInterval != refreshInterval {
+            restartSampling()
+        }
     }
 
     func stop() {

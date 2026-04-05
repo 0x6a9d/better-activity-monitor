@@ -3,7 +3,7 @@ import XCTest
 
 final class DashboardSamplingModeTests: XCTestCase {
     func testForegroundSamplingModeUsesFastestRefreshIntervals() {
-        XCTAssertEqual(DashboardViewModel.SamplingMode.foreground.refreshInterval, .seconds(2))
+        XCTAssertEqual(DashboardViewModel.SamplingMode.foreground.refreshInterval, .seconds(1))
         XCTAssertEqual(DashboardViewModel.SamplingMode.foreground.cpuMemoryLeaderRefreshInterval, 30)
         XCTAssertEqual(DashboardViewModel.SamplingMode.foreground.gpuLeaderRefreshInterval, 20)
     }
