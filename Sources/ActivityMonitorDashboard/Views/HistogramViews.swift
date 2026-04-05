@@ -1,7 +1,7 @@
 import SwiftUI
 import ActivityMonitorDashboardCore
 
-struct CPULoadHistogramView: View {
+struct CPULoadHistogramView: View, Equatable {
     let samples: [CPUSample]
     let capacity: Int
     let style: GraphStyle
@@ -39,7 +39,7 @@ struct CPULoadHistogramView: View {
     }
 }
 
-struct PressureHistogramView: View {
+struct PressureHistogramView: View, Equatable {
     let samples: [PressureHistogramSample]
     let capacity: Int
     let isUnavailable: Bool

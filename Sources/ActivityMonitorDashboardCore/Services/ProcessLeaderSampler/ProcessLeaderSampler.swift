@@ -66,43 +66,45 @@ public actor ProcessLeaderSampler {
             return (nil, nil)
         }
 
-        let rows = Self.parseProcessSnapshot(from: output)
-        guard !rows.isEmpty else {
-            return (nil, nil)
-        }
-
-        let cpuLeader = rows.max(by: { lhs, rhs in
-            if lhs.cpuPercent == rhs.cpuPercent {
-                return lhs.pid > rhs.pid
+        return autoreleasepool {
+            let rows = Self.parseProcessSnapshot(from: output)
+            guard !rows.isEmpty else {
+                return (nil, nil)
             }
 
-            return lhs.cpuPercent < rhs.cpuPercent
-        }).map {
-            ProcessLeader(
-                name: $0.command,
-                metricKind: .percent,
-                numericValue: $0.cpuPercent,
-                displayValue: Self.percentString(from: $0.cpuPercent)
-            )
-        }
+            let cpuLeader = rows.max(by: { lhs, rhs in
+                if lhs.cpuPercent == rhs.cpuPercent {
+                    return lhs.pid > rhs.pid
+                }
 
-        let memoryLeader = rows.max(by: { lhs, rhs in
-            if lhs.residentKilobytes == rhs.residentKilobytes {
-                return lhs.pid > rhs.pid
+                return lhs.cpuPercent < rhs.cpuPercent
+            }).map {
+                ProcessLeader(
+                    name: $0.command,
+                    metricKind: .percent,
+                    numericValue: $0.cpuPercent,
+                    displayValue: Self.percentString(from: $0.cpuPercent)
+                )
             }
 
-            return lhs.residentKilobytes < rhs.residentKilobytes
-        }).map {
-            let residentBytes = $0.residentKilobytes * 1_024
-            return ProcessLeader(
-                name: $0.command,
-                metricKind: .bytes,
-                numericValue: Double(residentBytes),
-                displayValue: Self.formattedMemoryKilobytesDisplay($0.residentKilobytes)
-            )
-        }
+            let memoryLeader = rows.max(by: { lhs, rhs in
+                if lhs.residentKilobytes == rhs.residentKilobytes {
+                    return lhs.pid > rhs.pid
+                }
 
-        return (cpuLeader, memoryLeader)
+                return lhs.residentKilobytes < rhs.residentKilobytes
+            }).map {
+                let residentBytes = $0.residentKilobytes * 1_024
+                return ProcessLeader(
+                    name: $0.command,
+                    metricKind: .bytes,
+                    numericValue: Double(residentBytes),
+                    displayValue: Self.formattedMemoryKilobytesDisplay($0.residentKilobytes)
+                )
+            }
+
+            return (cpuLeader, memoryLeader)
+        }
     }
 
     private func sampleCurrentGPULeader(at date: Date, overallUtilization: Double) async -> ProcessLeader? {
@@ -114,65 +116,83 @@ public actor ProcessLeaderSampler {
             return nil
         }
 
-        let snapshot = Self.parseGPURegistrySnapshot(from: output)
-        let totalsByProcess = snapshot.processes
-        logger.debug(
-            "GPU snapshot parsed \(totalsByProcess.count) processes, lastSubmittedPID=\(snapshot.lastSubmittedPID ?? -1), overallUtilization=\(overallUtilization)"
-        )
-
-        let previousTotals = previousGPUTotals
-        let previousDate = lastGPUSampleDate
-        previousGPUTotals = totalsByProcess.mapValues(\.total)
-        lastGPUSampleDate = date
-
-        guard !totalsByProcess.isEmpty else {
-            logger.warning("GPU snapshot contained no process usage entries")
-            return nil
-        }
-
-        if let previousDate {
-            let elapsedInterval = max(date.timeIntervalSince(previousDate), 0.001)
-            let bestLeader = scaledGPULeader(
-                from: totalsByProcess,
-                previousTotals: previousTotals,
-                elapsedInterval: elapsedInterval,
-                overallUtilization: overallUtilization
+        let result = autoreleasepool { () -> (leader: ProcessLeader?, unresolvedPID: Int32?) in
+            let snapshot = Self.parseGPURegistrySnapshot(from: output)
+            let totalsByProcess = snapshot.processes
+            logger.debug(
+                "GPU snapshot parsed \(totalsByProcess.count) processes, lastSubmittedPID=\(snapshot.lastSubmittedPID ?? -1), overallUtilization=\(overallUtilization)"
             )
 
-            if let bestLeader {
-                logger.debug("GPU leader selected from deltas: \(bestLeader.name) \(bestLeader.displayValue)")
-                return bestLeader
+            let previousTotals = previousGPUTotals
+            let previousDate = lastGPUSampleDate
+            previousGPUTotals = totalsByProcess.mapValues(\.total)
+            lastGPUSampleDate = date
+
+            guard !totalsByProcess.isEmpty else {
+                logger.warning("GPU snapshot contained no process usage entries")
+                return (nil, nil)
             }
 
-            logger.debug("GPU leader delta calculation produced no winner; falling back to estimated or last-submission heuristics")
-        } else {
-            logger.debug("GPU leader baseline established; using estimated winner until a delta sample is available")
+            if let previousDate {
+                let elapsedInterval = max(date.timeIntervalSince(previousDate), 0.001)
+                let bestLeader = scaledGPULeader(
+                    from: totalsByProcess,
+                    previousTotals: previousTotals,
+                    elapsedInterval: elapsedInterval,
+                    overallUtilization: overallUtilization
+                )
+
+                if let bestLeader {
+                    logger.debug("GPU leader selected from deltas: \(bestLeader.name) \(bestLeader.displayValue)")
+                    return (bestLeader, nil)
+                }
+
+                logger.debug("GPU leader delta calculation produced no winner; falling back to estimated or last-submission heuristics")
+            } else {
+                logger.debug("GPU leader baseline established; using estimated winner until a delta sample is available")
+            }
+
+            if let estimatedLeader = estimatedGPULeader(
+                from: Array(totalsByProcess.values),
+                overallUtilization: overallUtilization
+            ) {
+                logger.debug("GPU leader selected from estimated activity: \(estimatedLeader.name) \(estimatedLeader.displayValue)")
+                return (estimatedLeader, nil)
+            }
+
+            guard let lastSubmittedPID = snapshot.lastSubmittedPID else {
+                logger.warning("GPU leader fallback failed: no lastSubmittedPID available")
+                return (nil, nil)
+            }
+
+            if let knownName = totalsByProcess[lastSubmittedPID]?.name {
+                let fallbackPercent = max(overallUtilization * 100, 0)
+                logger.debug("GPU leader selected from lastSubmittedPID fallback: \(knownName) \(fallbackPercent)")
+                return (
+                    ProcessLeader(
+                        name: knownName,
+                        metricKind: .percent,
+                        numericValue: fallbackPercent,
+                        displayValue: Self.percentString(from: fallbackPercent)
+                    ),
+                    nil
+                )
+            }
+
+            return (nil, lastSubmittedPID)
         }
 
-        if let estimatedLeader = estimatedGPULeader(
-            from: Array(totalsByProcess.values),
-            overallUtilization: overallUtilization
-        ) {
-            logger.debug("GPU leader selected from estimated activity: \(estimatedLeader.name) \(estimatedLeader.displayValue)")
-            return estimatedLeader
+        if let leader = result.leader {
+            return leader
         }
 
-        guard let lastSubmittedPID = snapshot.lastSubmittedPID else {
-            logger.warning("GPU leader fallback failed: no lastSubmittedPID available")
+        guard let unresolvedPID = result.unresolvedPID else {
             return nil
         }
 
-        let fallbackName: String
-        if let knownName = totalsByProcess[lastSubmittedPID]?.name {
-            fallbackName = knownName
-        } else if let sampledName = await sampleProcessName(for: lastSubmittedPID) {
-            fallbackName = sampledName
-        } else {
-            fallbackName = "PID \(lastSubmittedPID)"
-        }
-
+        let fallbackName = await sampleProcessName(for: unresolvedPID) ?? "PID \(unresolvedPID)"
         let fallbackPercent = max(overallUtilization * 100, 0)
-        logger.debug("GPU leader selected from lastSubmittedPID fallback: \(fallbackName) \(fallbackPercent)")
+        logger.debug("GPU leader selected from sampled process-name fallback: \(fallbackName) \(fallbackPercent)")
         return ProcessLeader(
             name: fallbackName,
             metricKind: .percent,

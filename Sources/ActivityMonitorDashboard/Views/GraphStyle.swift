@@ -1,6 +1,6 @@
 import Foundation
 
-enum GraphStyle: String, CaseIterable, Identifiable {
+enum GraphStyle: String, CaseIterable, Identifiable, Equatable {
     case filledLine = "Filled Line"
     case bars = "Bars"
 

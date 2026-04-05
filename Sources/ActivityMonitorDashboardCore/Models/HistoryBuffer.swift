@@ -29,4 +29,12 @@ public struct HistoryBuffer<Element: Sendable>: Sendable {
             storage.removeFirst(storage.count - capacity)
         }
     }
+
+    public mutating func appendIfChanged(_ element: Element) where Element: Equatable {
+        guard last != element else {
+            return
+        }
+
+        append(element)
+    }
 }

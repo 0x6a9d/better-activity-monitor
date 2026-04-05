@@ -1,7 +1,7 @@
 import SwiftUI
 import ActivityMonitorDashboardCore
 
-struct CPUFrequencyHistogramView: View {
+struct CPUFrequencyHistogramView: View, Equatable {
     let samples: [CPUFrequencySample]
     let capacity: Int
     let style: GraphStyle
@@ -39,7 +39,7 @@ struct CPUFrequencyHistogramView: View {
     }
 }
 
-struct PowerHistogramView: View {
+struct PowerHistogramView: View, Equatable {
     let samples: [TotalPowerSample]
     let capacity: Int
     let style: GraphStyle
@@ -76,7 +76,7 @@ struct PowerHistogramView: View {
     }
 }
 
-struct ThermalStateHistogramView: View {
+struct ThermalStateHistogramView: View, Equatable {
     let samples: [ThermalSample]
     let capacity: Int
     let style: GraphStyle
@@ -111,7 +111,7 @@ struct ThermalStateHistogramView: View {
     }
 }
 
-struct FanSpeedHistogramView: View {
+struct FanSpeedHistogramView: View, Equatable {
     let samples: [ThermalSample]
     let capacity: Int
     let style: GraphStyle

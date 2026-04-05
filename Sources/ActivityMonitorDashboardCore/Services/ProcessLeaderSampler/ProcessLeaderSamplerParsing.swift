@@ -1,17 +1,24 @@
 import Foundation
 
 extension ProcessLeaderSampler {
-    static func parseProcessSnapshot(from output: String) -> [ProcessSnapshotRow] {
-        let regex = try? NSRegularExpression(
-            pattern: #"^\s*(\d+)\s+([0-9]+(?:\.[0-9]+)?)\s+(\d+)\s+(.+?)\s*$"#,
-            options: [.anchorsMatchLines]
-        )
+    private static let processSnapshotRegex = try! NSRegularExpression(
+        pattern: #"^\s*(\d+)\s+([0-9]+(?:\.[0-9]+)?)\s+(\d+)\s+(.+?)\s*$"#,
+        options: [.anchorsMatchLines]
+    )
+    private static let usageEntryRegex = try! NSRegularExpression(pattern: #"\{[^}]+\}"#)
+    private static let lastSubmissionPIDRegex = try! NSRegularExpression(pattern: #"fLastSubmissionPID\"=(\d+)"#)
+    private static let creatorRegex = try! NSRegularExpression(
+        pattern: #"\"IOUserClientCreator\"\s*=\s*\"([^\"]+)\""#
+    )
+    private static let creatorPIDRegex = try! NSRegularExpression(pattern: #"pid\s+(\d+),\s+(.+)$"#)
+    private static let lastSubmittedTimeRegex = try! NSRegularExpression(pattern: #"lastSubmittedTime\"=(\d+)"#)
+    private static let accumulatedGPUTimeRegex = try! NSRegularExpression(pattern: #"accumulatedGPUTime\"=(\d+)"#)
 
+    static func parseProcessSnapshot(from output: String) -> [ProcessSnapshotRow] {
         return output
             .split(separator: "\n")
             .compactMap { line in
-                guard let regex,
-                      let match = regex.firstMatch(
+                guard let match = processSnapshotRegex.firstMatch(
                         in: String(line),
                         options: [],
                         range: NSRange(location: 0, length: line.utf16.count)
@@ -138,13 +145,13 @@ extension ProcessLeaderSampler {
             }
 
             if line.contains("\"AGCInfo\""),
-               let pid = firstMatch(in: line, pattern: #"fLastSubmissionPID\"=(\d+)"#)
+               let pid = firstMatch(in: line, regex: lastSubmissionPIDRegex)
             {
                 lastSubmittedPID = Int32(pid)
             }
 
             if line.contains("\"IOUserClientCreator\""),
-               let creator = firstMatch(in: line, pattern: #"\"IOUserClientCreator\"\s*=\s*\"([^\"]+)\""#)
+               let creator = firstMatch(in: line, regex: creatorRegex)
             {
                 currentCreator = parseCreator(from: creator)
             }
@@ -163,14 +170,13 @@ extension ProcessLeaderSampler {
     }
 
     private static func parseAppUsageEntries(from line: String) -> [GPUUsageEntry] {
-        let usageRegex = try? NSRegularExpression(pattern: #"\{[^}]+\}"#)
         let range = NSRange(location: 0, length: line.utf16.count)
-        let matches = usageRegex?.matches(in: line, options: [], range: range) ?? []
+        let matches = usageEntryRegex.matches(in: line, options: [], range: range)
 
         return matches.compactMap { match in
             let entryString = substring(match.range, in: line)
-            let lastSubmittedTime = UInt64(firstMatch(in: entryString, pattern: #"lastSubmittedTime\"=(\d+)"#) ?? "") ?? 0
-            let accumulatedGPUTime = UInt64(firstMatch(in: entryString, pattern: #"accumulatedGPUTime\"=(\d+)"#) ?? "") ?? 0
+            let lastSubmittedTime = UInt64(firstMatch(in: entryString, regex: lastSubmittedTimeRegex) ?? "") ?? 0
+            let accumulatedGPUTime = UInt64(firstMatch(in: entryString, regex: accumulatedGPUTimeRegex) ?? "") ?? 0
 
             guard lastSubmittedTime > 0 || accumulatedGPUTime > 0 else {
                 return nil
@@ -184,9 +190,8 @@ extension ProcessLeaderSampler {
     }
 
     private static func parseCreator(from creator: String) -> (pid: Int32, name: String)? {
-        let pattern = #"pid\s+(\d+),\s+(.+)$"#
-        guard let pidString = firstMatch(in: creator, pattern: pattern, captureGroup: 1),
-              let name = firstMatch(in: creator, pattern: pattern, captureGroup: 2)
+        guard let pidString = firstMatch(in: creator, regex: creatorPIDRegex, captureGroup: 1),
+              let name = firstMatch(in: creator, regex: creatorPIDRegex, captureGroup: 2)
         else {
             return nil
         }
@@ -196,14 +201,12 @@ extension ProcessLeaderSampler {
 
     private static func firstMatch(
         in string: String,
-        pattern: String,
+        regex: NSRegularExpression,
         captureGroup: Int = 1
     ) -> String? {
-        let regex = try? NSRegularExpression(pattern: pattern)
         let range = NSRange(location: 0, length: string.utf16.count)
 
-        guard let regex,
-              let match = regex.firstMatch(in: string, options: [], range: range),
+        guard let match = regex.firstMatch(in: string, options: [], range: range),
               match.numberOfRanges > captureGroup
         else {
             return nil

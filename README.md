@@ -4,7 +4,7 @@
 
 <h1 align="center">Better Activity Monitor</h1>
 
-Better Activity Monitor is a polished macOS performance dashboard built for people who want faster insight than the default system tools usually provide.
+Inspired by [mactop](https://github.com/metaspartan/mactop) and macOS's built in Activity Monitor, Better Activity Monitor is a polished macOS performance dashboard built for people who want faster insight than the default system tools usually provide.
 
 It brings your Mac's most important live metrics into a single focused view, making it easier to spot load spikes, thermal pressure, power draw, and the processes driving them.
 
@@ -24,7 +24,7 @@ It brings your Mac's most important live metrics into a single focused view, mak
 ## Built For
 
 - Developers who want a faster at-a-glance performance view
-- Power users tuning workloads on Apple silicon Macs
+- Power users tuning workloads on Apple silicon Macs (ARM64) only
 - Anyone trying to understand heat, fan behavior, or resource spikes without digging through multiple utilities
 
 ## Requirements
@@ -77,6 +77,7 @@ The app bundle is recreated in the `Build/` folder each time.
 - This setup is intended for local or personal use on your own Mac.
 - The app is ad-hoc signed, which is appropriate for local distribution and testing.
 - It is not currently configured for App Store distribution.
+- This app is completely vibe-coded, please be aware there may be mistakes.
 
 ## License
 

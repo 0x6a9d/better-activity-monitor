@@ -224,18 +224,6 @@ extension DashboardView {
         }
     }
 
-    @ViewBuilder
-    func panelContent<Graph: View>(for panel: DashboardPanelKind, @ViewBuilder graph: () -> Graph) -> some View {
-        ZStack(alignment: .top) {
-            graph()
-
-            if isEditingDashboard {
-                PanelSwatchRow(swatches: panelSwatches(for: panel))
-                    .padding(.top, 8)
-            }
-        }
-    }
-
     func handleTileDrop(items: [String], targetPanel: DashboardPanelKind) -> Bool {
         defer {
             resetDragPreview()

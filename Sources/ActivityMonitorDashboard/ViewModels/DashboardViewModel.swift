@@ -2,43 +2,6 @@ import Foundation
 import Combine
 import ActivityMonitorDashboardCore
 
-private struct DashboardMetricsState {
-    var cpuSamples: [CPUSample] = []
-    var cpuFrequencySamples: [CPUFrequencySample] = []
-    var memorySamples: [MemorySample] = []
-    var gpuSamples: [GPUSample] = []
-    var aneSamples: [ANESample] = []
-    var totalPowerSamples: [TotalPowerSample] = []
-    var thermalSamples: [ThermalSample] = []
-    var thermalSample: ThermalSample = .unavailable
-    var processLeaders: ProcessLeadersSnapshot = .empty
-    var lastUpdated: Date?
-
-    var latestCPU: CPUSample? {
-        cpuSamples.last
-    }
-
-    var latestMemory: MemorySample? {
-        memorySamples.last
-    }
-
-    var latestCPUFrequency: CPUFrequencySample? {
-        cpuFrequencySamples.last(where: \.isAvailable) ?? cpuFrequencySamples.last
-    }
-
-    var latestGPU: GPUSample? {
-        gpuSamples.last
-    }
-
-    var latestANE: ANESample? {
-        aneSamples.last
-    }
-
-    var latestTotalPower: TotalPowerSample? {
-        totalPowerSamples.last
-    }
-}
-
 private actor MetricsSamplingCoordinator {
     private let sampler = SystemMetricsSampler()
 
@@ -54,7 +17,14 @@ final class DashboardViewModel: ObservableObject {
     private static let cpuMemoryLeaderRefreshInterval: TimeInterval = 30
     private static let gpuLeaderRefreshInterval: TimeInterval = 20
 
-    @Published private var metrics = DashboardMetricsState()
+    let cpuLoadPanel = CPULoadPanelModel(initialState: CPULoadPanelState())
+    let cpuFrequencyPanel = CPUFrequencyPanelModel(initialState: CPUFrequencyPanelState())
+    let memoryPressurePanel = MemoryPressurePanelModel(initialState: MemoryPressurePanelState())
+    let gpuPressurePanel = GPUPressurePanelModel(initialState: GPUPressurePanelState())
+    let aneUsagePanel = ANEUsagePanelModel(initialState: ANEUsagePanelState())
+    let totalPowerPanel = TotalPowerPanelModel(initialState: TotalPowerPanelState())
+    let thermalStatePanel = ThermalStatePanelModel(initialState: ThermalStatePanelState())
+    let fanSpeedPanel = FanSpeedPanelModel(initialState: FanSpeedPanelState())
 
     private let samplingCoordinator = MetricsSamplingCoordinator()
     private let processLeaderSampler = ProcessLeaderSampler()
@@ -70,70 +40,6 @@ final class DashboardViewModel: ObservableObject {
     private var gpuLeaderTask: Task<Void, Never>?
     private var lastCPUMemoryLeaderRequestDate: Date?
     private var lastGPULeaderRequestDate: Date?
-
-    var cpuSamples: [CPUSample] {
-        metrics.cpuSamples
-    }
-
-    var cpuFrequencySamples: [CPUFrequencySample] {
-        metrics.cpuFrequencySamples
-    }
-
-    var memorySamples: [MemorySample] {
-        metrics.memorySamples
-    }
-
-    var gpuSamples: [GPUSample] {
-        metrics.gpuSamples
-    }
-
-    var aneSamples: [ANESample] {
-        metrics.aneSamples
-    }
-
-    var totalPowerSamples: [TotalPowerSample] {
-        metrics.totalPowerSamples
-    }
-
-    var thermalSamples: [ThermalSample] {
-        metrics.thermalSamples
-    }
-
-    var thermalSample: ThermalSample {
-        metrics.thermalSample
-    }
-
-    var processLeaders: ProcessLeadersSnapshot {
-        metrics.processLeaders
-    }
-
-    var lastUpdated: Date? {
-        metrics.lastUpdated
-    }
-
-    var latestCPU: CPUSample? {
-        metrics.latestCPU
-    }
-
-    var latestMemory: MemorySample? {
-        metrics.latestMemory
-    }
-
-    var latestCPUFrequency: CPUFrequencySample? {
-        metrics.latestCPUFrequency
-    }
-
-    var latestGPU: GPUSample? {
-        metrics.latestGPU
-    }
-
-    var latestANE: ANESample? {
-        metrics.latestANE
-    }
-
-    var latestTotalPower: TotalPowerSample? {
-        metrics.latestTotalPower
-    }
 
     func start() {
         guard refreshTask == nil else {
@@ -176,31 +82,121 @@ final class DashboardViewModel: ObservableObject {
 
     private func apply(snapshot: SystemMetricsSnapshot) {
         cpuHistory.append(snapshot.cpu)
-        cpuFrequencyHistory.append(snapshot.cpuFrequency)
+        cpuFrequencyHistory.appendIfChanged(snapshot.cpuFrequency)
         memoryHistory.append(snapshot.memory)
         gpuHistory.append(snapshot.gpu)
         aneHistory.append(snapshot.ane)
         if let totalPower = snapshot.totalPower {
             totalPowerHistory.append(totalPower)
         }
-        thermalHistory.append(snapshot.thermal)
+        thermalHistory.appendIfChanged(snapshot.thermal)
 
-        metrics = DashboardMetricsState(
-            cpuSamples: cpuHistory.values,
-            cpuFrequencySamples: cpuFrequencyHistory.values,
-            memorySamples: memoryHistory.values,
-            gpuSamples: gpuHistory.values,
-            aneSamples: aneHistory.values,
-            totalPowerSamples: totalPowerHistory.values,
-            thermalSamples: thermalHistory.values,
-            thermalSample: snapshot.thermal,
-            processLeaders: metrics.processLeaders,
-            lastUpdated: snapshot.timestamp
-        )
+        let thermalSample = thermalHistory.last ?? snapshot.thermal
+
+        updateCPULoadPanel(using: thermalSample)
+        updateCPUFrequencyPanel()
+        updateMemoryPressurePanel(using: thermalSample)
+        updateGPUPressurePanel(using: thermalSample)
+        updateANEUsagePanel(using: thermalSample)
+        updateTotalPowerPanel()
+        updateThermalPanels(using: thermalSample)
 
         let timestamp = snapshot.timestamp
         refreshGPULeaderIfNeeded(at: timestamp, overallUtilization: snapshot.gpu.utilization)
         refreshCPUMemoryLeadersIfNeeded(at: timestamp)
+    }
+
+    private func updateCPULoadPanel(using thermalSample: ThermalSample) {
+        let samples = cpuHistory.values
+        cpuLoadPanel.setState(
+            CPULoadPanelState(
+                latestSample: cpuHistory.last ?? CPULoadPanelState().latestSample,
+                samples: samples,
+                cpuTemperatureCelsius: thermalSample.cpuTemperatureCelsius,
+                averageUsage: average(samples.map(\.totalUsage)),
+                leader: cpuLoadPanel.state.leader
+            )
+        )
+    }
+
+    private func updateCPUFrequencyPanel() {
+        let samples = cpuFrequencyHistory.values
+        cpuFrequencyPanel.setState(
+            CPUFrequencyPanelState(
+                latestSample: samples.last(where: \.isAvailable) ?? samples.last ?? .unavailable,
+                samples: samples,
+                averageGHz: average(samples.filter(\.isAvailable).map(\.overallGHz))
+            )
+        )
+    }
+
+    private func updateMemoryPressurePanel(using thermalSample: ThermalSample) {
+        let samples = memoryHistory.values
+        memoryPressurePanel.setState(
+            MemoryPressurePanelState(
+                latestSample: memoryHistory.last ?? MemoryPressurePanelState().latestSample,
+                histogramSamples: samples.map(\.histogramSample),
+                socTemperatureCelsius: thermalSample.socTemperatureCelsius,
+                averagePressure: average(samples.map(\.pressure)),
+                leader: memoryPressurePanel.state.leader
+            )
+        )
+    }
+
+    private func updateGPUPressurePanel(using thermalSample: ThermalSample) {
+        let samples = gpuHistory.values
+        gpuPressurePanel.setState(
+            GPUPressurePanelState(
+                latestSample: gpuHistory.last ?? .unavailable,
+                histogramSamples: samples.map(\.histogramSample),
+                gpuTemperatureCelsius: thermalSample.gpuTemperatureCelsius,
+                averageUsage: average(samples.filter(\.isAvailable).map(\.utilization)),
+                leader: gpuPressurePanel.state.leader
+            )
+        )
+    }
+
+    private func updateANEUsagePanel(using thermalSample: ThermalSample) {
+        let samples = aneHistory.values
+        aneUsagePanel.setState(
+            ANEUsagePanelState(
+                latestSample: aneHistory.last ?? .unavailable,
+                histogramSamples: samples.map(\.histogramSample),
+                socTemperatureCelsius: thermalSample.socTemperatureCelsius,
+                averageUsage: average(samples.filter(\.isAvailable).map(\.utilization))
+            )
+        )
+    }
+
+    private func updateTotalPowerPanel() {
+        let samples = totalPowerHistory.values
+        let measuredMaximum = samples.map(\.watts).max() ?? 0
+        totalPowerPanel.setState(
+            TotalPowerPanelState(
+                samples: samples,
+                currentWatts: totalPowerHistory.last?.watts,
+                averageWatts: average(samples.map(\.watts)),
+                displayMaximumWatts: max(10, measuredMaximum * 1.15)
+            )
+        )
+    }
+
+    private func updateThermalPanels(using thermalSample: ThermalSample) {
+        let samples = thermalHistory.values
+        thermalStatePanel.setState(
+            ThermalStatePanelState(
+                latestSample: thermalSample,
+                samples: samples,
+                averageTemperatureCelsius: average(samples.compactMap(\.displayTemperatureCelsius))
+            )
+        )
+        fanSpeedPanel.setState(
+            FanSpeedPanelState(
+                latestSample: thermalSample,
+                samples: samples,
+                averageFanSpeedRPM: average(samples.compactMap(\.fanSpeedRPM))
+            )
+        )
     }
 
     private func refreshGPULeaderIfNeeded(at timestamp: Date, overallUtilization: Double) {
@@ -233,13 +229,11 @@ final class DashboardViewModel: ObservableObject {
             }
 
             await MainActor.run {
-                var updatedMetrics = self.metrics
-                updatedMetrics.processLeaders = ProcessLeadersSnapshot(
-                    cpu: self.metrics.processLeaders.cpu,
-                    memory: self.metrics.processLeaders.memory,
-                    gpu: gpuLeader
-                )
-                self.metrics = updatedMetrics
+                self.gpuPressurePanel.update { state in
+                    var updatedState = state
+                    updatedState.leader = gpuLeader
+                    return updatedState
+                }
                 self.gpuLeaderTask = nil
             }
         }
@@ -274,13 +268,16 @@ final class DashboardViewModel: ObservableObject {
             }
 
             await MainActor.run {
-                var updatedMetrics = self.metrics
-                updatedMetrics.processLeaders = ProcessLeadersSnapshot(
-                    cpu: leaders.cpu,
-                    memory: leaders.memory,
-                    gpu: self.metrics.processLeaders.gpu
-                )
-                self.metrics = updatedMetrics
+                self.cpuLoadPanel.update { state in
+                    var updatedState = state
+                    updatedState.leader = leaders.cpu
+                    return updatedState
+                }
+                self.memoryPressurePanel.update { state in
+                    var updatedState = state
+                    updatedState.leader = leaders.memory
+                    return updatedState
+                }
                 self.cpuMemoryLeaderTask = nil
             }
         }

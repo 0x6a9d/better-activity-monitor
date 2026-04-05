@@ -19,19 +19,21 @@ public final class SystemMetricsSampler {
     public init() {}
 
     public func sample() -> SystemMetricsSnapshot {
-        let timestamp = Date()
-        let ioReportReading = ioReportSampler.sample()
+        autoreleasepool {
+            let timestamp = Date()
+            let ioReportReading = ioReportSampler.sample()
 
-        return SystemMetricsSnapshot(
-            timestamp: timestamp,
-            cpu: cpuSampler.sample(powerWatts: ioReportReading.cpuPowerWatts),
-            cpuFrequency: sampleCPUFrequency(at: timestamp),
-            memory: memorySampler.sample(powerWatts: ioReportReading.dramPowerWatts),
-            gpu: gpuSampler.sample(ioReportReading: ioReportReading),
-            ane: aneSampler.sample(ioReportReading: ioReportReading),
-            totalPower: ioReportReading.totalPowerWatts.map { TotalPowerSample(watts: $0) },
-            thermal: sampleThermalMetrics(at: timestamp)
-        )
+            return SystemMetricsSnapshot(
+                timestamp: timestamp,
+                cpu: cpuSampler.sample(powerWatts: ioReportReading.cpuPowerWatts),
+                cpuFrequency: sampleCPUFrequency(at: timestamp),
+                memory: memorySampler.sample(powerWatts: ioReportReading.dramPowerWatts),
+                gpu: gpuSampler.sample(ioReportReading: ioReportReading),
+                ane: aneSampler.sample(ioReportReading: ioReportReading),
+                totalPower: ioReportReading.totalPowerWatts.map { TotalPowerSample(watts: $0) },
+                thermal: sampleThermalMetrics(at: timestamp)
+            )
+        }
     }
 
     private func sampleCPUFrequency(at timestamp: Date) -> CPUFrequencySample {

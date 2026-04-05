@@ -2,6 +2,11 @@ import Foundation
 
 @MainActor
 enum MetricFormatting {
+    private struct DecimalFormatterKey: Hashable {
+        let minimumFractionDigits: Int
+        let maximumFractionDigits: Int
+    }
+
     private static let byteFormatter: ByteCountFormatter = {
         let formatter = ByteCountFormatter()
         formatter.allowedUnits = [.useGB, .useMB]
@@ -45,6 +50,54 @@ enum MetricFormatting {
         return formatter
     }()
 
+    private static let relativeDateFormatter: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        return formatter
+    }()
+
+    private static var decimalFormatterCache: [DecimalFormatterKey: NumberFormatter] = [
+        DecimalFormatterKey(minimumFractionDigits: 0, maximumFractionDigits: 0): wholeNumberFormatter,
+        DecimalFormatterKey(minimumFractionDigits: 1, maximumFractionDigits: 1): oneDecimalFormatter,
+    ]
+
+    private static func decimalFormatter(
+        minimumFractionDigits: Int,
+        maximumFractionDigits: Int
+    ) -> NumberFormatter {
+        let key = DecimalFormatterKey(
+            minimumFractionDigits: minimumFractionDigits,
+            maximumFractionDigits: maximumFractionDigits
+        )
+
+        if let formatter = decimalFormatterCache[key] {
+            return formatter
+        }
+
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.usesGroupingSeparator = false
+        formatter.minimumFractionDigits = minimumFractionDigits
+        formatter.maximumFractionDigits = maximumFractionDigits
+        decimalFormatterCache[key] = formatter
+        return formatter
+    }
+
+    private static func decimalString(
+        _ value: Double,
+        minimumFractionDigits: Int,
+        maximumFractionDigits: Int
+    ) -> String {
+        let formatter = decimalFormatter(
+            minimumFractionDigits: minimumFractionDigits,
+            maximumFractionDigits: maximumFractionDigits
+        )
+
+        return formatter.string(from: NSNumber(value: value))
+            ?? oneDecimalFormatter.string(from: NSNumber(value: value))
+            ?? "0.0"
+    }
+
     static func bytes(_ value: UInt64) -> String {
         byteFormatter.string(fromByteCount: Int64(value))
     }
@@ -74,29 +127,21 @@ enum MetricFormatting {
         maximumFractionDigits: Int = 1,
         includeSpace: Bool = true
     ) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.usesGroupingSeparator = false
-        formatter.minimumFractionDigits = minimumFractionDigits
-        formatter.maximumFractionDigits = maximumFractionDigits
-
-        let formatted = formatter.string(from: NSNumber(value: value))
-            ?? oneDecimalFormatter.string(from: NSNumber(value: value))
-            ?? "0.0"
+        let formatted = decimalString(
+            value,
+            minimumFractionDigits: minimumFractionDigits,
+            maximumFractionDigits: maximumFractionDigits
+        )
         let suffix = includeSpace ? " W" : "W"
         return "\(formatted)\(suffix)"
     }
 
     static func gigahertz(_ value: Double, fractionDigits: Int = 1) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.usesGroupingSeparator = false
-        formatter.minimumFractionDigits = fractionDigits
-        formatter.maximumFractionDigits = fractionDigits
-
-        let formatted = formatter.string(from: NSNumber(value: value))
-            ?? oneDecimalFormatter.string(from: NSNumber(value: value))
-            ?? "0.0"
+        let formatted = decimalString(
+            value,
+            minimumFractionDigits: fractionDigits,
+            maximumFractionDigits: fractionDigits
+        )
         return "\(formatted)GHz"
     }
 
@@ -105,8 +150,6 @@ enum MetricFormatting {
             return "Waiting for samples"
         }
 
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .short
-        return "Updated \(formatter.localizedString(for: date, relativeTo: Date()))"
+        return "Updated \(relativeDateFormatter.localizedString(for: date, relativeTo: Date()))"
     }
 }
