@@ -1,13 +1,14 @@
+import AppKit
 import SwiftUI
 import ActivityMonitorDashboardCore
 
 struct DashboardView: View {
-    @Environment(\.scenePhase) private var scenePhase
     @StateObject var viewModel = DashboardViewModel()
     @StateObject var customizationStore = DashboardCustomizationStore()
     @AppStorage("graphStyle") var graphStyleRawValue = GraphStyle.filledLine.rawValue
     @AppStorage("appearanceMode") var appearanceModeRawValue = AppearanceMode.auto.rawValue
     @State var isEditingDashboard = false
+    @State var isAppActive = NSApp.isActive
     @State var draggedPanel: DashboardPanelKind?
     @State var dropTargetPanel: DashboardPanelKind?
 
@@ -29,7 +30,12 @@ struct DashboardView: View {
             }
             syncSamplingState()
         }
-        .onChange(of: scenePhase) { _, _ in
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            isAppActive = true
+            syncSamplingState()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
+            isAppActive = false
             syncSamplingState()
         }
         .onDisappear {
@@ -48,7 +54,7 @@ struct DashboardView: View {
     }
 
     var shouldSampleMetrics: Bool {
-        scenePhase == .active && !isEditingDashboard
+        isAppActive && !isEditingDashboard
     }
 
     func syncSamplingState() {

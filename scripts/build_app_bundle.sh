@@ -6,6 +6,7 @@ APP_NAME="Better Activity Monitor"
 BUILD_ROOT="$ROOT_DIR/Build"
 APP_PATH="$BUILD_ROOT/$APP_NAME.app"
 ICON_SOURCE="$ROOT_DIR/bam-logo.png"
+STATUS_ICON_SOURCE="$ROOT_DIR/bam-logo-mono.png"
 INFO_PLIST_SOURCE="$ROOT_DIR/AppBundle/Info.plist"
 BUILD_CACHE_ROOT="$BUILD_ROOT/swift-build-cache"
 TMP_ROOT="${TMPDIR:-/tmp}"
@@ -20,6 +21,11 @@ export SWIFTPM_MODULECACHE_OVERRIDE="$BUILD_CACHE_ROOT/ModuleCache"
 
 if [[ ! -f "$ICON_SOURCE" ]]; then
   echo "Missing icon source at $ICON_SOURCE" >&2
+  exit 1
+fi
+
+if [[ ! -f "$STATUS_ICON_SOURCE" ]]; then
+  echo "Missing status icon source at $STATUS_ICON_SOURCE" >&2
   exit 1
 fi
 
@@ -72,6 +78,7 @@ cp "$EXECUTABLE_PATH" "$APP_PATH/Contents/MacOS/$APP_NAME"
 chmod +x "$APP_PATH/Contents/MacOS/$APP_NAME"
 cp "$INFO_PLIST_SOURCE" "$APP_PATH/Contents/Info.plist"
 cp "$ICNS_PATH" "$APP_PATH/Contents/Resources/AppIcon.icns"
+cp "$STATUS_ICON_SOURCE" "$APP_PATH/Contents/Resources/bam-logo-mono.png"
 
 codesign --force --deep --sign - "$APP_PATH" >/dev/null
 

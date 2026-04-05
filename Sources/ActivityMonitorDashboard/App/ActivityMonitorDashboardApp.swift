@@ -3,26 +3,18 @@ import SwiftUI
 @main
 struct ActivityMonitorDashboardApp: App {
     @NSApplicationDelegateAdaptor(AppLifecycleDelegate.self) private var appDelegate
-    @AppStorage("appearanceMode") private var appearanceModeRawValue = AppearanceMode.auto.rawValue
 
     var body: some Scene {
-        WindowGroup("Better Activity Monitor") {
-            DashboardView()
-                .onAppear {
-                    applyAppearanceMode()
-                }
-                .onChange(of: appearanceModeRawValue) { _, _ in
-                    applyAppearanceMode()
-                }
+        Settings {
+            EmptyView()
         }
-        .windowResizability(.contentSize)
-    }
-
-    private var appearanceMode: AppearanceMode {
-        AppearanceMode.fromStoredValue(appearanceModeRawValue)
-    }
-
-    private func applyAppearanceMode() {
-        appearanceMode.applyToApplication()
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("Icon Settings...") {
+                    appDelegate.showIconSettingsWindow()
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
+        }
     }
 }
