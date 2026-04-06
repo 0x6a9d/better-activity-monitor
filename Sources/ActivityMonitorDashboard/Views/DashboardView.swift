@@ -5,8 +5,11 @@ import ActivityMonitorDashboardCore
 struct DashboardView: View {
     @StateObject var viewModel = DashboardViewModel()
     @StateObject var customizationStore = DashboardCustomizationStore()
+    @StateObject private var hardwareProfileStore = SystemHardwareProfileStore()
     @AppStorage("graphStyle") var graphStyleRawValue = GraphStyle.filledLine.rawValue
     @AppStorage("appearanceMode") var appearanceModeRawValue = AppearanceMode.auto.rawValue
+    @AppStorage(AppPreferenceKey.showMenuBarIcon) private var showMenuBarIcon = true
+    @AppStorage(AppPreferenceKey.showDockIcon) private var showDockIcon = true
     @State var isEditingDashboard = false
     @State var isAppActive = NSApp.isActive
     @State var draggedPanel: DashboardPanelKind?
@@ -37,6 +40,9 @@ struct DashboardView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
             isAppActive = false
             syncSamplingState()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openDashboardSettings)) { _ in
+            openSettings()
         }
         .onDisappear {
             resetDragPreview()
@@ -88,8 +94,48 @@ struct DashboardView: View {
         dropTargetPanel = nil
     }
 
+    func toggleSettings() {
+        if isEditingDashboard {
+            resetDragPreview()
+        }
+
+        isEditingDashboard.toggle()
+    }
+
+    func openSettings() {
+        guard !isEditingDashboard else {
+            restoreDashboardFocus()
+            return
+        }
+
+        isEditingDashboard = true
+    }
+
+    func restoreDashboardFocus() {
+        DispatchQueue.main.async {
+            NSApp.activate(ignoringOtherApps: true)
+            let activeWindow = NSApp.keyWindow
+                ?? NSApp.mainWindow
+                ?? NSApp.windows.first(where: { $0.isVisible })
+            activeWindow?.makeKeyAndOrderFront(nil)
+        }
+    }
+
+    var hardwareProfile: SystemHardwareProfile {
+        hardwareProfileStore.profile
+    }
+
     var controls: some View {
-        HStack {
+        HStack(alignment: .top, spacing: 12) {
+            HStack(alignment: .center, spacing: 12) {
+                chipLabel
+
+                visibilityControls
+                    .opacity(isEditingDashboard ? 1 : 0)
+                    .allowsHitTesting(isEditingDashboard)
+                    .accessibilityHidden(!isEditingDashboard)
+            }
+
             Spacer(minLength: 12)
 
             HStack(spacing: 8) {
@@ -124,11 +170,7 @@ struct DashboardView: View {
                 .frame(width: 96)
 
                 Button {
-                    if isEditingDashboard {
-                        resetDragPreview()
-                    }
-
-                    isEditingDashboard.toggle()
+                    toggleSettings()
                 } label: {
                     Group {
                         if isEditingDashboard {
@@ -148,9 +190,59 @@ struct DashboardView: View {
                     )
                 }
                 .buttonStyle(.plain)
-                .help(isEditingDashboard ? "Finish customizing the dashboard" : "Customize graph colors and layout")
+                .help(isEditingDashboard ? "Close settings" : "Open settings and customize the dashboard")
             }
         }
+        .frame(minHeight: 48, alignment: .top)
+    }
+
+    var visibilityControls: some View {
+        HStack(spacing: 14) {
+            Toggle("Menubar", isOn: menuBarIconBinding)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .disabled(showMenuBarIcon && !showDockIcon)
+
+            Toggle("Dock", isOn: dockIconBinding)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .disabled(showDockIcon && !showMenuBarIcon)
+        }
+        .font(.caption.weight(.medium))
+        .fixedSize()
+    }
+
+    var chipLabel: some View {
+        Text(hardwareProfile.chipDisplayName)
+            .font(.headline.weight(.semibold))
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(DashboardPalette.segmentedControlBackground)
+            )
+            .fixedSize()
+    }
+
+    var menuBarIconBinding: Binding<Bool> {
+        Binding(
+            get: { showMenuBarIcon },
+            set: { newValue in
+                showMenuBarIcon = newValue
+                restoreDashboardFocus()
+            }
+        )
+    }
+
+    var dockIconBinding: Binding<Bool> {
+        Binding(
+            get: { showDockIcon },
+            set: { newValue in
+                showDockIcon = newValue
+                restoreDashboardFocus()
+            }
+        )
     }
 
     var dashboardGrid: some View {

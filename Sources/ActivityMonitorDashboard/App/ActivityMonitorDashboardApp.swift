@@ -10,8 +10,8 @@ struct ActivityMonitorDashboardApp: App {
         }
         .commands {
             CommandGroup(replacing: .appSettings) {
-                Button("Icon Settings...") {
-                    appDelegate.showIconSettingsWindow()
+                Button("Settings...") {
+                    appDelegate.showDashboardSettings()
                 }
                 .keyboardShortcut(",", modifiers: .command)
             }

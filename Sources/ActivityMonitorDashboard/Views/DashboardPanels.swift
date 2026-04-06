@@ -16,6 +16,7 @@ extension DashboardView {
                 userColor: customization.cpuUserColor,
                 systemColor: customization.cpuSystemColor,
                 swatches: panelSwatches(for: .cpuLoad),
+                titleDetail: hardwareProfile.cpuLoadTitleDetail,
                 isEditingDashboard: isEditingDashboard
             )
         case .cpuFrequency:
@@ -24,7 +25,11 @@ extension DashboardView {
                 graphStyle: graphStyle,
                 performanceColor: customization.cpuFrequencyPerformanceColor,
                 superColor: customization.cpuFrequencySuperColor,
-                swatches: panelSwatches(for: .cpuFrequency),
+                performanceColorSelection: customizationStore.binding(for: \.cpuFrequencyPerformance),
+                performanceDefaultColor: customizationStore.defaultColor(for: \.cpuFrequencyPerformance),
+                superColorSelection: customizationStore.binding(for: \.cpuFrequencySuper),
+                superDefaultColor: customizationStore.defaultColor(for: \.cpuFrequencySuper),
+                titleDetail: hardwareProfile.cpuFrequencyTitleDetail,
                 isEditingDashboard: isEditingDashboard
             )
         case .gpuPressure:
@@ -33,6 +38,7 @@ extension DashboardView {
                 graphStyle: graphStyle,
                 colors: customization.gpuPressureColors,
                 swatches: panelSwatches(for: .gpuPressure),
+                titleDetail: hardwareProfile.gpuPressureTitleDetail,
                 isEditingDashboard: isEditingDashboard
             )
         case .memoryPressure:
@@ -41,6 +47,7 @@ extension DashboardView {
                 graphStyle: graphStyle,
                 colors: customization.memoryPressureColors,
                 swatches: panelSwatches(for: .memoryPressure),
+                titleDetail: hardwareProfile.memoryPressureTitleDetail,
                 isEditingDashboard: isEditingDashboard
             )
         case .aneUsage:

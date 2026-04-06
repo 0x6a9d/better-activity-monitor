@@ -1,5 +1,22 @@
 import Foundation
 
+public enum CPUFrequencyTierLabel: String, Sendable {
+    case efficiency
+    case performance
+    case superTier
+
+    public var displayName: String {
+        switch self {
+        case .efficiency:
+            "Efficiency"
+        case .performance:
+            "Performance"
+        case .superTier:
+            "Super"
+        }
+    }
+}
+
 public struct CPUSample: Sendable, Equatable {
     public let userUsage: Double
     public let systemUsage: Double
@@ -25,6 +42,8 @@ public struct CPUFrequencySample: Sendable, Equatable {
     public let superMaxGHz: Double
     public let performanceCoreCount: Int
     public let superCoreCount: Int
+    public let performanceTierLabel: CPUFrequencyTierLabel
+    public let superTierLabel: CPUFrequencyTierLabel
     public let isAvailable: Bool
 
     public init(
@@ -34,6 +53,8 @@ public struct CPUFrequencySample: Sendable, Equatable {
         superMaxGHz: Double,
         performanceCoreCount: Int,
         superCoreCount: Int,
+        performanceTierLabel: CPUFrequencyTierLabel = .performance,
+        superTierLabel: CPUFrequencyTierLabel = .superTier,
         isAvailable: Bool
     ) {
         self.performanceGHz = max(0, performanceGHz)
@@ -42,6 +63,8 @@ public struct CPUFrequencySample: Sendable, Equatable {
         self.superMaxGHz = max(0, superMaxGHz)
         self.performanceCoreCount = max(0, performanceCoreCount)
         self.superCoreCount = max(0, superCoreCount)
+        self.performanceTierLabel = performanceTierLabel
+        self.superTierLabel = superTierLabel
         self.isAvailable = isAvailable
     }
 
@@ -52,8 +75,18 @@ public struct CPUFrequencySample: Sendable, Equatable {
         superMaxGHz: 0,
         performanceCoreCount: 0,
         superCoreCount: 0,
+        performanceTierLabel: .performance,
+        superTierLabel: .superTier,
         isAvailable: false
     )
+
+    public var performanceTierDisplayName: String {
+        performanceTierLabel.displayName
+    }
+
+    public var superTierDisplayName: String {
+        superTierLabel.displayName
+    }
 
     public var overallGHz: Double {
         let weightedCoreCount = performanceCoreCount + superCoreCount

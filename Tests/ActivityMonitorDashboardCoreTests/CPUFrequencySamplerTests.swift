@@ -35,6 +35,23 @@ func cpuFrequencySampleUsesWeightedOverallAverage() {
     #expect(abs(sample.superNormalized - (4.2 / 4.8)) < 0.001)
 }
 
+@Test
+func cpuFrequencySamplerInfersTierLabelsFromObservedChannelPrefixes() {
+    let baseLabels = CPUFrequencySampler.tierLabels(
+        forPerformancePrefixes: ["ECPU"],
+        superPrefixes: ["PCPU"]
+    )
+    let proLabels = CPUFrequencySampler.tierLabels(
+        forPerformancePrefixes: ["MCPU"],
+        superPrefixes: ["PCPU"]
+    )
+
+    #expect(baseLabels.performance == .efficiency)
+    #expect(baseLabels.super == .performance)
+    #expect(proLabels.performance == .performance)
+    #expect(proLabels.super == .superTier)
+}
+
 private func dvfsData(_ rawFrequencies: [UInt32]) -> Data {
     var data = Data()
 

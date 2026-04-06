@@ -7,12 +7,15 @@ struct PanelGraphContent<Graph: View>: View {
     let graph: Graph
 
     var body: some View {
-        ZStack(alignment: .top) {
+        ZStack {
             graph
 
             if isEditingDashboard {
-                PanelSwatchRow(swatches: swatches)
-                    .padding(.top, 8)
+                VStack {
+                    Spacer(minLength: 0)
+                    PanelSwatchRow(swatches: swatches)
+                    Spacer(minLength: 0)
+                }
             }
         }
     }
@@ -24,6 +27,7 @@ struct CPULoadPanelTile: View {
     let userColor: Color
     let systemColor: Color
     let swatches: [PanelEditSwatch]
+    let titleDetail: String?
     let isEditingDashboard: Bool
 
     var body: some View {
@@ -38,6 +42,7 @@ struct CPULoadPanelTile: View {
 
         MetricPanelView(
             title: "CPU Load",
+            titleDetail: titleDetail,
             headline: MetricFormatting.percent(state.latestSample.totalUsage),
             accentColor: userColor,
             stats: stats
@@ -65,7 +70,11 @@ struct CPUFrequencyPanelTile: View {
     let graphStyle: GraphStyle
     let performanceColor: Color
     let superColor: Color
-    let swatches: [PanelEditSwatch]
+    let performanceColorSelection: Binding<Color>
+    let performanceDefaultColor: Color
+    let superColorSelection: Binding<Color>
+    let superDefaultColor: Color
+    let titleDetail: String?
     let isEditingDashboard: Bool
 
     var body: some View {
@@ -73,12 +82,12 @@ struct CPUFrequencyPanelTile: View {
         let sample = state.latestSample
         let stats = [
             MetricStat(
-                label: "Performance",
+                label: sample.performanceTierDisplayName,
                 value: sample.isAvailable ? MetricFormatting.gigahertz(sample.performanceGHz) : "--",
                 valueColor: performanceColor
             ),
             MetricStat(
-                label: "Super",
+                label: sample.superTierDisplayName,
                 value: sample.isAvailable ? MetricFormatting.gigahertz(sample.superGHz) : "--",
                 valueColor: superColor
             ),
@@ -90,13 +99,14 @@ struct CPUFrequencyPanelTile: View {
 
         MetricPanelView(
             title: "CPU Frequency",
+            titleDetail: titleDetail,
             headline: sample.isAvailable ? MetricFormatting.gigahertz(sample.overallGHz) : "Unavailable",
             accentColor: performanceColor,
             stats: stats
         ) {
             PanelGraphContent(
                 isEditingDashboard: isEditingDashboard,
-                swatches: swatches,
+                swatches: frequencySwatches(for: sample),
                 graph: CPUFrequencyHistogramView(
                     samples: state.samples,
                     capacity: DashboardViewModel.historyCapacity,
@@ -110,6 +120,23 @@ struct CPUFrequencyPanelTile: View {
             EmptyView()
         }
     }
+
+    private func frequencySwatches(for sample: CPUFrequencySample) -> [PanelEditSwatch] {
+        [
+            PanelEditSwatch(
+                id: "cpu-performance",
+                label: sample.performanceTierDisplayName,
+                selection: performanceColorSelection,
+                defaultColor: performanceDefaultColor
+            ),
+            PanelEditSwatch(
+                id: "cpu-super",
+                label: sample.superTierDisplayName,
+                selection: superColorSelection,
+                defaultColor: superDefaultColor
+            ),
+        ]
+    }
 }
 
 struct MemoryPressurePanelTile: View {
@@ -117,6 +144,7 @@ struct MemoryPressurePanelTile: View {
     let graphStyle: GraphStyle
     let colors: PressureGraphColors
     let swatches: [PanelEditSwatch]
+    let titleDetail: String?
     let isEditingDashboard: Bool
 
     var body: some View {
@@ -136,6 +164,7 @@ struct MemoryPressurePanelTile: View {
 
         MetricPanelView(
             title: "Memory Pressure",
+            titleDetail: titleDetail,
             headline: MetricFormatting.percent(sample.pressure),
             accentColor: accentColor,
             stats: stats
@@ -164,6 +193,7 @@ struct GPUPressurePanelTile: View {
     let graphStyle: GraphStyle
     let colors: PressureGraphColors
     let swatches: [PanelEditSwatch]
+    let titleDetail: String?
     let isEditingDashboard: Bool
 
     var body: some View {
@@ -182,6 +212,7 @@ struct GPUPressurePanelTile: View {
 
         MetricPanelView(
             title: "GPU Pressure",
+            titleDetail: titleDetail,
             headline: sample.isAvailable ? MetricFormatting.percent(sample.utilization) : "Unavailable",
             accentColor: accentColor,
             stats: stats

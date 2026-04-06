@@ -16,6 +16,7 @@ struct MetricStat: Identifiable {
 
 struct MetricPanelView<Headline: View, Content: View, Footer: View>: View {
     let title: String
+    let titleDetail: String?
     let accentColor: Color
     let stats: [MetricStat]
     let headlineView: Headline
@@ -24,6 +25,7 @@ struct MetricPanelView<Headline: View, Content: View, Footer: View>: View {
 
     init(
         title: String,
+        titleDetail: String? = nil,
         headline: String,
         accentColor: Color,
         stats: [MetricStat],
@@ -31,6 +33,7 @@ struct MetricPanelView<Headline: View, Content: View, Footer: View>: View {
         @ViewBuilder footer: () -> Footer
     ) where Headline == Text {
         self.title = title
+        self.titleDetail = titleDetail
         self.accentColor = accentColor
         self.stats = stats
         self.headlineView = Text(headline)
@@ -42,6 +45,7 @@ struct MetricPanelView<Headline: View, Content: View, Footer: View>: View {
 
     init(
         title: String,
+        titleDetail: String? = nil,
         accentColor: Color,
         stats: [MetricStat],
         @ViewBuilder headline: () -> Headline,
@@ -49,6 +53,7 @@ struct MetricPanelView<Headline: View, Content: View, Footer: View>: View {
         @ViewBuilder footer: () -> Footer
     ) {
         self.title = title
+        self.titleDetail = titleDetail
         self.accentColor = accentColor
         self.stats = stats
         self.headlineView = headline()
@@ -59,8 +64,20 @@ struct MetricPanelView<Headline: View, Content: View, Footer: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
-                Text(title)
-                    .font(.headline.weight(.semibold))
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(title)
+                        .font(.headline.weight(.semibold))
+
+                    if let titleDetail, !titleDetail.isEmpty {
+                        Text("•")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(DashboardPalette.secondaryLabel)
+
+                        Text(titleDetail)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(DashboardPalette.secondaryLabel)
+                    }
+                }
 
                 Spacer()
 

@@ -1,10 +1,13 @@
 import AppKit
 
+extension Notification.Name {
+    static let openDashboardSettings = Notification.Name("openDashboardSettings")
+}
+
 @MainActor
 final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
     private let userDefaults = UserDefaults.standard
     private var dashboardWindowController: DashboardWindowController?
-    private var iconSettingsWindowController: IconSettingsWindowController?
     private var statusItem: NSStatusItem?
     private lazy var statusMenu = makeStatusMenu()
     private var userDefaultsObserver: NSObjectProtocol?
@@ -12,6 +15,12 @@ final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         userDefaults.register(defaults: AppVisibilityPreferences.defaultValues)
         AppVisibilityPreferences.normalizeStoredValues(in: userDefaults)
+
+        guard PlatformSupport.isSupportedHardware() else {
+            presentUnsupportedPlatformAlert()
+            NSApp.terminate(nil)
+            return
+        }
 
         applyAppearanceMode()
         refreshAppVisibility()
@@ -43,11 +52,12 @@ final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
-    func showIconSettingsWindow() {
-        activateApplicationForWindowPresentation()
-        let controller = iconSettingsWindowController ?? IconSettingsWindowController()
-        iconSettingsWindowController = controller
-        controller.present()
+    func showDashboardSettings() {
+        showDashboardWindow()
+
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: .openDashboardSettings, object: nil)
+        }
     }
 
     private var currentVisibilityPreferences: AppVisibilityPreferences {
@@ -105,13 +115,13 @@ final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
     private func makeStatusMenu() -> NSMenu {
         let menu = NSMenu()
 
-        let iconSettingsItem = NSMenuItem(
-            title: "Icon Settings",
-            action: #selector(openIconSettingsFromStatusMenu(_:)),
+        let settingsItem = NSMenuItem(
+            title: "Settings",
+            action: #selector(openSettingsFromStatusMenu(_:)),
             keyEquivalent: ""
         )
-        iconSettingsItem.target = self
-        menu.addItem(iconSettingsItem)
+        settingsItem.target = self
+        menu.addItem(settingsItem)
 
         menu.addItem(.separator())
 
@@ -136,6 +146,18 @@ final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
     private func activateApplicationForWindowPresentation() {
         refreshAppVisibility()
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func presentUnsupportedPlatformAlert() {
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+
+        let alert = NSAlert()
+        alert.alertStyle = .critical
+        alert.messageText = "Apple Silicon Required"
+        alert.informativeText = "Better Activity Monitor is intended for Apple Silicon Macs only."
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 
     private func makeStatusItemImage() -> NSImage {
@@ -178,8 +200,8 @@ final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc
-    private func openIconSettingsFromStatusMenu(_ sender: Any?) {
-        showIconSettingsWindow()
+    private func openSettingsFromStatusMenu(_ sender: Any?) {
+        showDashboardSettings()
     }
 
     @objc

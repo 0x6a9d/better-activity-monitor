@@ -3,17 +3,18 @@ import SwiftUI
 
 private enum AppWindowIdentifier {
     static let dashboard = NSUserInterfaceItemIdentifier("dashboard-window")
-    static let iconSettings = NSUserInterfaceItemIdentifier("icon-settings-window")
 }
 
-final class DashboardWindowController: NSWindowController {
+final class DashboardWindowController: NSWindowController, NSWindowDelegate {
+    private var isTerminatingFromWindowClose = false
+
     init() {
         let hostingController = NSHostingController(rootView: DashboardView())
         let window = NSWindow(contentViewController: hostingController)
 
         window.identifier = AppWindowIdentifier.dashboard
         window.title = "Better Activity Monitor"
-        window.styleMask = [.titled, .closable, .miniaturizable]
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.isReleasedWhenClosed = false
         window.setFrameAutosaveName("BetterActivityMonitorDashboardWindow")
 
@@ -27,6 +28,7 @@ final class DashboardWindowController: NSWindowController {
 
         super.init(window: window)
         shouldCascadeWindows = false
+        window.delegate = self
     }
 
     @available(*, unavailable)
@@ -47,32 +49,14 @@ final class DashboardWindowController: NSWindowController {
 
         window.makeKeyAndOrderFront(nil)
     }
-}
 
-final class IconSettingsWindowController: NSWindowController {
-    init() {
-        let hostingController = NSHostingController(rootView: IconSettingsView())
-        let window = NSWindow(contentViewController: hostingController)
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        guard !isTerminatingFromWindowClose else {
+            return true
+        }
 
-        window.identifier = AppWindowIdentifier.iconSettings
-        window.title = "Icon Settings"
-        window.styleMask = [.titled, .closable]
-        window.isReleasedWhenClosed = false
-        window.setFrameAutosaveName("BetterActivityMonitorIconSettingsWindow")
-        window.center()
-        window.setContentSize(NSSize(width: 300, height: 148))
-
-        super.init(window: window)
-        shouldCascadeWindows = false
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    func present() {
-        showWindow(nil)
-        window?.makeKeyAndOrderFront(nil)
+        isTerminatingFromWindowClose = true
+        NSApp.terminate(nil)
+        return false
     }
 }

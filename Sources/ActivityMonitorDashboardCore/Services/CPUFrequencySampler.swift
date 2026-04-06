@@ -185,6 +185,8 @@ final class CPUFrequencySampler {
 
         var performanceFrequenciesGHz: [Double] = []
         var superFrequenciesGHz: [Double] = []
+        var performanceChannelPrefixes: Set<String> = []
+        var superChannelPrefixes: Set<String> = []
 
         for case let channel as CFDictionary in channelObjects {
             guard Self.string(from: functions.channelGetGroup(channel)) == "CPU Stats",
@@ -201,6 +203,7 @@ final class CPUFrequencySampler {
                     using: functions
                 ) {
                     superFrequenciesGHz.append(frequencyGHz)
+                    superChannelPrefixes.insert("PCPU")
                 }
                 continue
             }
@@ -212,6 +215,7 @@ final class CPUFrequencySampler {
                     using: functions
                 ) {
                     performanceFrequenciesGHz.append(frequencyGHz)
+                    performanceChannelPrefixes.insert(channelName.hasPrefix("ECPU") ? "ECPU" : "MCPU")
                 }
             }
         }
@@ -224,6 +228,11 @@ final class CPUFrequencySampler {
             return .unavailable
         }
 
+        let tierLabels = Self.tierLabels(
+            forPerformancePrefixes: performanceChannelPrefixes,
+            superPrefixes: superChannelPrefixes
+        )
+
         return CPUFrequencySample(
             performanceGHz: performanceFrequency ?? 0,
             superGHz: superFrequency ?? 0,
@@ -231,7 +240,33 @@ final class CPUFrequencySampler {
             superMaxGHz: frequencyTables.superGHz.last ?? superFrequency ?? 0,
             performanceCoreCount: performanceFrequenciesGHz.count,
             superCoreCount: superFrequenciesGHz.count,
+            performanceTierLabel: tierLabels.performance,
+            superTierLabel: tierLabels.super,
             isAvailable: true
+        )
+    }
+
+    static func tierLabels(
+        forPerformancePrefixes performancePrefixes: Set<String>,
+        superPrefixes: Set<String>
+    ) -> (performance: CPUFrequencyTierLabel, super: CPUFrequencyTierLabel) {
+        if performancePrefixes.contains("ECPU") {
+            return (
+                performance: .efficiency,
+                super: .performance
+            )
+        }
+
+        if performancePrefixes.contains("MCPU") {
+            return (
+                performance: .performance,
+                super: superPrefixes.contains("PCPU") ? .superTier : .performance
+            )
+        }
+
+        return (
+            performance: .performance,
+            super: .superTier
         )
     }
 
