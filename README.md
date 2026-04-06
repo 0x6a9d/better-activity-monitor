@@ -79,6 +79,8 @@ The app bundle is recreated in the `Build/` folder each time.
 - It is not currently configured for App Store distribution.
 - This app is completely vibe-coded, please be aware there may be mistakes.
 
+Comments? Suggestions? Feature requests? Let me know! bam@0x6a9d.com
+
 ## License
 
 This project is licensed under the Apache License, Version 2.0.
