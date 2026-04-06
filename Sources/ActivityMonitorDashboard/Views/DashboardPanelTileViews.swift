@@ -220,8 +220,7 @@ struct ANEUsagePanelTile: View {
             MetricStat(label: "Power", value: sample.isAvailable ? MetricFormatting.watts(sample.powerWatts) : "--"),
             MetricStat(
                 label: "Average",
-                value: state.averageUsage.map { MetricFormatting.percent($0) } ?? "--",
-                valueColor: color
+                value: state.averageUsage.map { MetricFormatting.percent($0) } ?? "--"
             ),
         ]
 
