@@ -33,8 +33,7 @@ def main() -> int:
     for size, icon_type in TYPE_BY_SIZE.items():
         png_path = iconset_dir / f"{size}.png"
         if not png_path.is_file():
-            print(f"missing required PNG: {png_path}", file=sys.stderr)
-            return 1
+            continue
 
         data = png_path.read_bytes()
         if not data.startswith(PNG_SIGNATURE):
@@ -42,6 +41,10 @@ def main() -> int:
             return 1
 
         chunks.append(chunk(icon_type, data))
+
+    if not chunks:
+        print(f"no PNG icons found in {iconset_dir}", file=sys.stderr)
+        return 1
 
     payload = b"".join(chunks)
     output_path.write_bytes(b"icns" + struct.pack(">I", len(payload) + 8) + payload)

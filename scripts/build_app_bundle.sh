@@ -11,6 +11,17 @@ INFO_PLIST_SOURCE="$ROOT_DIR/AppBundle/Info.plist"
 BUILD_CACHE_ROOT="$BUILD_ROOT/swift-build-cache"
 TMP_ROOT="${TMPDIR:-/tmp}"
 SWIFT_BUILD_ROOT="$TMP_ROOT/better-activity-monitor-swift-package-build"
+APP_ICON_MAX_SIZE="${APP_ICON_MAX_SIZE:-1024}"
+STATUS_ICON_RENDER_SIZE="${STATUS_ICON_RENDER_SIZE:-36}"
+SUPPORTED_APP_ICON_SIZES=(16 32 64 128 256 512 1024)
+
+case "$APP_ICON_MAX_SIZE" in
+  16|32|64|128|256|512|1024) ;;
+  *)
+    echo "APP_ICON_MAX_SIZE must be one of: ${SUPPORTED_APP_ICON_SIZES[*]}" >&2
+    exit 1
+    ;;
+esac
 
 rm -rf "$BUILD_CACHE_ROOT" "$SWIFT_BUILD_ROOT"
 mkdir -p "$BUILD_CACHE_ROOT/home" "$BUILD_CACHE_ROOT/ModuleCache" "$SWIFT_BUILD_ROOT"
@@ -47,6 +58,7 @@ fi
 WORK_DIR="$(mktemp -d)"
 ICONSET_DIR="$WORK_DIR/IconPNGSet"
 ICNS_PATH="$WORK_DIR/AppIcon.icns"
+STATUS_ICON_PATH="$WORK_DIR/bam-logo-mono.png"
 
 cleanup() {
   rm -rf "$WORK_DIR"
@@ -61,13 +73,34 @@ render_icon() {
   sips -z "$size" "$size" "$ICON_SOURCE" --out "$output" >/dev/null
 }
 
-render_icon 16 "$ICONSET_DIR/16.png"
-render_icon 32 "$ICONSET_DIR/32.png"
-render_icon 64 "$ICONSET_DIR/64.png"
-render_icon 128 "$ICONSET_DIR/128.png"
-render_icon 256 "$ICONSET_DIR/256.png"
-render_icon 512 "$ICONSET_DIR/512.png"
-render_icon 1024 "$ICONSET_DIR/1024.png"
+compress_png_if_possible() {
+  local png_path="$1"
+
+  if ! command -v pngquant >/dev/null 2>&1; then
+    return 0
+  fi
+
+  pngquant --force --skip-if-larger --strip --ext .png "$png_path" >/dev/null 2>&1 || {
+    local rc="$?"
+
+    if [[ "$rc" -ne 98 ]]; then
+      echo "pngquant failed for $png_path" >&2
+      exit "$rc"
+    fi
+  }
+}
+
+for size in "${SUPPORTED_APP_ICON_SIZES[@]}"; do
+  if (( size > APP_ICON_MAX_SIZE )); then
+    continue
+  fi
+
+  render_icon "$size" "$ICONSET_DIR/$size.png"
+  compress_png_if_possible "$ICONSET_DIR/$size.png"
+done
+
+sips -z "$STATUS_ICON_RENDER_SIZE" "$STATUS_ICON_RENDER_SIZE" "$STATUS_ICON_SOURCE" --out "$STATUS_ICON_PATH" >/dev/null
+compress_png_if_possible "$STATUS_ICON_PATH"
 
 python3 "$ROOT_DIR/scripts/pngs_to_icns.py" "$ICONSET_DIR" "$ICNS_PATH"
 
@@ -76,9 +109,10 @@ mkdir -p "$APP_PATH/Contents/MacOS" "$APP_PATH/Contents/Resources"
 
 cp "$EXECUTABLE_PATH" "$APP_PATH/Contents/MacOS/$APP_NAME"
 chmod +x "$APP_PATH/Contents/MacOS/$APP_NAME"
+strip -Sx "$APP_PATH/Contents/MacOS/$APP_NAME"
 cp "$INFO_PLIST_SOURCE" "$APP_PATH/Contents/Info.plist"
 cp "$ICNS_PATH" "$APP_PATH/Contents/Resources/AppIcon.icns"
-cp "$STATUS_ICON_SOURCE" "$APP_PATH/Contents/Resources/bam-logo-mono.png"
+cp "$STATUS_ICON_PATH" "$APP_PATH/Contents/Resources/bam-logo-mono.png"
 
 codesign --force --deep --sign - "$APP_PATH" >/dev/null
 
