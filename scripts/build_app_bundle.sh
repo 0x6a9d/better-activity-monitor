@@ -11,7 +11,9 @@ INFO_PLIST_SOURCE="$ROOT_DIR/AppBundle/Info.plist"
 BUILD_CACHE_ROOT="$BUILD_ROOT/swift-build-cache"
 TMP_ROOT="${TMPDIR:-/tmp}"
 SWIFT_BUILD_ROOT="$TMP_ROOT/better-activity-monitor-swift-package-build"
+APP_ICON_SOURCE_SIZE=1024
 APP_ICON_MAX_SIZE="${APP_ICON_MAX_SIZE:-1024}"
+APP_ICON_CROP_SIZE="${APP_ICON_CROP_SIZE:-940}"
 STATUS_ICON_RENDER_SIZE="${STATUS_ICON_RENDER_SIZE:-36}"
 SUPPORTED_APP_ICON_SIZES=(16 32 64 128 256 512 1024)
 
@@ -22,6 +24,11 @@ case "$APP_ICON_MAX_SIZE" in
     exit 1
     ;;
 esac
+
+if [[ "$APP_ICON_CROP_SIZE" != <-> ]] || (( APP_ICON_CROP_SIZE < 256 || APP_ICON_CROP_SIZE > APP_ICON_SOURCE_SIZE )); then
+  echo "APP_ICON_CROP_SIZE must be an integer between 256 and $APP_ICON_SOURCE_SIZE" >&2
+  exit 1
+fi
 
 rm -rf "$BUILD_CACHE_ROOT" "$SWIFT_BUILD_ROOT"
 mkdir -p "$BUILD_CACHE_ROOT/home" "$BUILD_CACHE_ROOT/ModuleCache" "$SWIFT_BUILD_ROOT"
@@ -58,6 +65,7 @@ fi
 WORK_DIR="$(mktemp -d)"
 ICONSET_DIR="$WORK_DIR/IconPNGSet"
 ICNS_PATH="$WORK_DIR/AppIcon.icns"
+APP_ICON_RENDER_SOURCE="$WORK_DIR/bam-logo.png"
 STATUS_ICON_PATH="$WORK_DIR/bam-logo-mono.png"
 
 cleanup() {
@@ -67,10 +75,17 @@ trap cleanup EXIT
 
 mkdir -p "$ICONSET_DIR"
 
+if (( APP_ICON_CROP_SIZE < APP_ICON_SOURCE_SIZE )); then
+  sips -c "$APP_ICON_CROP_SIZE" "$APP_ICON_CROP_SIZE" "$ICON_SOURCE" --out "$WORK_DIR/bam-logo-cropped.png" >/dev/null
+  sips -z "$APP_ICON_SOURCE_SIZE" "$APP_ICON_SOURCE_SIZE" "$WORK_DIR/bam-logo-cropped.png" --out "$APP_ICON_RENDER_SOURCE" >/dev/null
+else
+  cp "$ICON_SOURCE" "$APP_ICON_RENDER_SOURCE"
+fi
+
 render_icon() {
   local size="$1"
   local output="$2"
-  sips -z "$size" "$size" "$ICON_SOURCE" --out "$output" >/dev/null
+  sips -z "$size" "$size" "$APP_ICON_RENDER_SOURCE" --out "$output" >/dev/null
 }
 
 compress_png_if_possible() {
@@ -96,7 +111,6 @@ for size in "${SUPPORTED_APP_ICON_SIZES[@]}"; do
   fi
 
   render_icon "$size" "$ICONSET_DIR/$size.png"
-  compress_png_if_possible "$ICONSET_DIR/$size.png"
 done
 
 sips -z "$STATUS_ICON_RENDER_SIZE" "$STATUS_ICON_RENDER_SIZE" "$STATUS_ICON_SOURCE" --out "$STATUS_ICON_PATH" >/dev/null
