@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 APP_NAME="Better Activity Monitor"
 BUILD_ROOT="$ROOT_DIR/Build"
 APP_PATH="$BUILD_ROOT/$APP_NAME.app"
+APPLICATIONS_APP_PATH="/Applications/$APP_NAME.app"
 ICON_SOURCE="$ROOT_DIR/bam-logo.png"
 STATUS_ICON_SOURCE="$ROOT_DIR/bam-logo-mono.png"
 INFO_PLIST_SOURCE="$ROOT_DIR/AppBundle/Info.plist"
@@ -132,3 +133,14 @@ codesign --force --deep --sign - "$APP_PATH" >/dev/null
 
 echo "Created app bundle:"
 echo "$APP_PATH"
+
+if [[ -f "$APPLICATIONS_APP_PATH/Contents/MacOS/$APP_NAME" ]]; then
+  if ! cmp -s "$APP_PATH/Contents/MacOS/$APP_NAME" "$APPLICATIONS_APP_PATH/Contents/MacOS/$APP_NAME"; then
+    echo
+    echo "Warning: /Applications contains a different '$APP_NAME.app' bundle."
+    echo "If you launch from /Applications or the Dock, you may be running stale code."
+    echo "Open the app directly from:"
+    echo "$APP_PATH"
+    echo "Or replace the /Applications copy with the freshly built bundle."
+  fi
+fi

@@ -14,19 +14,36 @@ struct DashboardView: View {
     @State var isAppActive = NSApp.isActive
     @State var draggedPanel: DashboardPanelKind?
     @State var dropTargetPanel: DashboardPanelKind?
+    @State private var availableHeight: CGFloat = 0
 
     let panelIdealWidth: CGFloat = 348
 
     var body: some View {
+        let rowCount = customizationStore.customization.panelRows.count
+        let graphHeight = DashboardLayoutMetrics.graphHeight(forContentHeight: availableHeight, rowCount: rowCount)
+
         VStack(alignment: .leading, spacing: 12) {
             controls
-            dashboardGrid
+            ScrollView(.vertical) {
+                dashboardGrid
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .padding(16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .environment(\.dashboardGraphHeight, graphHeight)
         .background(DashboardPalette.windowBackground.ignoresSafeArea())
+        .background {
+            GeometryReader { geometry in
+                Color.clear
+                    .preference(key: DashboardContentHeightPreferenceKey.self, value: geometry.size.height)
+            }
+        }
         .onAppear {
             syncSamplingState()
         }
+        .onPreferenceChange(DashboardContentHeightPreferenceKey.self) { availableHeight = $0 }
         .onChange(of: isEditingDashboard) { _, isEditing in
             if !isEditing {
                 resetDragPreview()

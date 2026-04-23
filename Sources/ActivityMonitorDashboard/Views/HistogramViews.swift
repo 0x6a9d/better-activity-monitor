@@ -89,11 +89,12 @@ struct PressureHistogramView: View, Equatable {
 }
 
 struct HistogramSurface<Content: View>: View {
+    @Environment(\.dashboardGraphHeight) private var graphHeight
     @ViewBuilder let content: Content
 
     var body: some View {
         content
-            .frame(height: 108)
+            .frame(height: graphHeight)
             .padding(8)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
